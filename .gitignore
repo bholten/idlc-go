@@ -1,0 +1,33 @@
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# Build artifacts
+*.got              # mismatched test output dumped next to expected files
+*.out
+/cmd/idlc/idlc     # built binary
+
+# Core3-derived assets — proprietary / can't redistribute. Populated by
+# `make fetch-corpus` (which copies from $CORE3_PATH into these paths).
+# Tests that depend on them auto-skip when the files are missing.
+/ref/idlc.jar
+/testdata/idl/
+/testdata/autogen/
+/testdata/mock/
+/testdata/ManagedObjectImplementation.cpp
+
+# Probe-gen scratch (the JAR writes its `-od autogen` output here)
+/testdata/probe/src/autogen/
+
+# Baseline diff scratch (JAR vs idlc-go side-by-side over full Core3)
+/_baseline/
+
+# Local build artifacts (idlc-go binary + cmake-configured Core3 build dir)
+/_build/
+
+# Oracle-gen scratch (legacy locations the JAR may drop output in)
+/scripts/oracle/src/autogen/
+/scripts/oracle/src/tmp/
+/scripts/oracle/src/_probe_out/

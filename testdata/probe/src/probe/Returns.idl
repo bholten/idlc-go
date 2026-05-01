@@ -1,0 +1,39 @@
+package probe;
+
+import engine.core.ManagedObject;
+include system.util.Vector;
+
+class Returns extends ManagedObject {
+	// Plain returns: primitive / string / class / generic<prim> / generic<class>.
+	public native int retInt();
+	public native string retString();
+	public native ManagedObject retClass();
+	public native Vector<int> retVecPrim();
+	public native Vector<ManagedObject> retVecClass();
+
+	// `final` modifier across types — does the JAR allow it on primitives?
+	public final native int finalInt();
+	public final native string finalString();
+	public final native ManagedObject finalClass();
+
+	// @reference family.
+	@reference
+	public native ManagedObject refClass();
+
+	@reference
+	public final native ManagedObject refFinalClass();
+
+	// @weakReference family.
+	@weakReference
+	public native ManagedObject weakClass();
+
+	@weakReference
+	public final native ManagedObject weakFinalClass();
+
+	// @dereferenced family.
+	@dereferenced
+	public native ManagedObject derefClass();
+
+	@dereferenced
+	public final native ManagedObject derefFinalClass();
+}

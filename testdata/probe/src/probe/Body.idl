@@ -1,0 +1,88 @@
+package probe;
+
+import engine.core.ManagedObject;
+include system.lang.System;
+
+class Body extends ManagedObject {
+	@dereferenced
+	private ManagedObject derefField;
+
+	private ManagedObject classField;
+
+	private string strField;
+
+	@local
+	public void nullRewrite() {
+		classField = null;
+		strField = null;
+	}
+
+	@local
+	public void thisRewrite() {
+		classField.lock(this);
+		strField = "passing this and null";
+	}
+
+	@local
+	public void classFieldArrow() {
+		classField.updateForWrite();
+		classField.lock();
+	}
+
+	@local
+	public void derefFieldArrow() {
+		derefField.updateForWrite();
+		derefField.lock();
+	}
+
+	@local
+	public void derefFieldBare() {
+		classField = derefField;
+	}
+
+	@local
+	public void importedClassCall() {
+		System.getTime();
+	}
+
+	@local
+	public int ifWithSpaceAlreadyHasSpace(int x) {
+		if (x > 0)
+			return 1;
+		else
+			return 0;
+	}
+
+	@local
+	public int ifNoSpace(int x) {
+		if(x > 0)
+			return 1;
+		else
+			return 0;
+	}
+
+	@local
+	public void synchronizedBlock() {
+		synchronized (classField) {
+			classField.updateForWrite();
+		}
+	}
+
+	@local
+	public void commentsInBody() {
+		// line comment
+		/* block comment */
+		classField.updateForWrite();
+	}
+
+	@local
+	public void stringLiteralPreserved() {
+		strField = "null this System.getTime classField.x";
+	}
+
+	@local
+	public void multipleRewritesPerLine() {
+		classField.lock(this);
+		classField = null;
+	}
+}

@@ -1,0 +1,38 @@
+package probe;
+
+import engine.core.ManagedObject;
+import system.lang.ref.Reference;
+include system.util.Vector;
+
+class Params extends ManagedObject {
+	// Plain params: primitive / string / class / generic<prim> / generic<class>.
+	public native void plainInt(int x);
+	public native void plainString(string s);
+	public native void plainClass(ManagedObject obj);
+	public native void plainGenericPrim(Vector<int> v);
+	public native void plainGenericClass(Vector<ManagedObject> v);
+
+	// `final` modifier across types.
+	public native void finalInt(final int x);
+	public native void finalString(final string s);
+	public native void finalClass(final ManagedObject obj);
+	public native void finalGenericClass(final Vector<ManagedObject> v);
+
+	// @dereferenced family.
+	public native void derefClass(@dereferenced ManagedObject obj);
+	public native void derefFinalClass(@dereferenced final ManagedObject obj);
+	public native void derefFinalString(@dereferenced final string s);
+	public native void derefGenericClass(@dereferenced Vector<ManagedObject> v);
+
+	// @rawTemplate family — opaque template paste.
+	public native void rawWithStar(@rawTemplate(value = "ManagedObject*") Reference x);
+	public native void rawNoStar(@rawTemplate(value = "ManagedObject") Reference x);
+
+	// Default values across types.
+	public native void defaultInt(int x = 5);
+	public native void defaultBool(boolean b = true);
+	public native void defaultNull(ManagedObject obj = null);
+	public native void defaultLong(long n = 0);
+	public native void defaultLongHex(long n = 0xFF);
+	public native void multiDefaults(int x, int y = 5, int z = 10);
+}

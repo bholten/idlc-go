@@ -1,0 +1,53 @@
+package probe;
+
+import engine.core.ManagedObject;
+include system.util.Vector;
+include system.util.VectorMap;
+include system.util.SortedVector;
+include system.util.SynchronizedSortedVector;
+
+class Generics extends ManagedObject {
+	// === Returns: single-arg containers, primitive vs class arg ===
+	public native Vector<int> retVecInt();
+	public native Vector<ManagedObject> retVecClass();
+	public native SortedVector<int> retSVecInt();
+	public native SortedVector<ManagedObject> retSVecClass();
+	public native SynchronizedSortedVector<ManagedObject> retSSVecClass();
+
+	// === Returns: 2-arg VectorMap (never tested in probes) ===
+	public native VectorMap<string, int> retVMapStrInt();
+	public native VectorMap<string, ManagedObject> retVMapStrClass();
+	public native VectorMap<ManagedObject, ManagedObject> retVMapClassClass();
+
+	// === Returns: nested generics ===
+	// JAR's parser quirk: `>>` is not recognised as two close-brackets
+	// — requires a space between them.
+	public native Vector<Vector<int> > retNestedVecPrim();
+	public native VectorMap<string, Vector<int> > retVMapStrVecInt();
+
+	// === Returns: @dereferenced variants ===
+	@dereferenced
+	public native Vector<int> derefRetVecInt();
+
+	@dereferenced
+	public native VectorMap<string, ManagedObject> derefRetVMapStrClass();
+
+	// === Params: same generic types ===
+	public native void paramVecInt(Vector<int> v);
+	public native void paramVMapStrClass(VectorMap<string, ManagedObject> m);
+	public native void paramVecClass(final Vector<ManagedObject> v);
+
+	@dereferenced
+	public native void derefParamVMap(VectorMap<string, ManagedObject> m);
+
+	// === Fields: parallel to returns ===
+	private Vector<int> fieldVecInt;
+	private Vector<ManagedObject> fieldVecClass;
+	private VectorMap<string, ManagedObject> fieldVMapStrClass;
+
+	@dereferenced
+	private Vector<int> derefFieldVecInt;
+
+	@dereferenced
+	private VectorMap<string, ManagedObject> derefFieldVMap;
+}

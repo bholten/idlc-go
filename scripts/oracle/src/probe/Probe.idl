@@ -1,0 +1,16 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+class Probe extends ManagedObject {
+	protected string a;
+	protected string A;
+	protected string aB;
+	protected string ab_cd;
+	protected string field1;
+	protected string very_long_field_name_with_underscores;
+	protected string CamelCase;
+	protected string snake_case;
+	protected string mixedCase123;
+	protected boolean someBool;
+}

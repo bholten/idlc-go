@@ -1,0 +1,3 @@
+[submodule "submodules/Core3"]
+	path = submodules/Core3
+	url = git@github.com:swgemu/Core3.git

@@ -1,0 +1,48 @@
+package probe;
+
+import engine.core.ManagedObject;
+include system.util.Vector;
+
+class Fields extends ManagedObject {
+	// === Visibility transitions (default → private, protected, public,
+	//     explicit private) ===
+	int defaultVisField;
+	public string pubField;
+	protected int protField;
+	private int explicitPrivField;
+
+	// === transient (kept in impl class, skipped from serialization) ===
+	transient int transientInt;
+	transient ManagedObject transientClass;
+
+	// === @dereferenced ===
+	@dereferenced
+	private ManagedObject derefClass;
+
+	@dereferenced
+	private transient ManagedObject derefTransient;
+
+	// === @weakReference ===
+	@weakReference
+	protected ManagedObject weakClass;
+
+	@weakReference
+	private transient ManagedObject weakTransient;
+
+	// === @weakReference + @dereferenced combined ===
+	@dereferenced
+	@weakReference
+	private ManagedObject weakDeref;
+
+	// === Generics ===
+	private Vector<int> vecPrim;
+	private Vector<ManagedObject> vecClass;
+
+	// === static final constants across primitive types ===
+	public static final int CONST_INT = 5;
+	public static final byte CONST_BYTE = 1;
+	public static final unsigned int CONST_UINT = 100;
+	public static final long CONST_LONG = 12345;
+	public static final boolean CONST_BOOL = true;
+	public static final float CONST_FLOAT = 3.14;
+}

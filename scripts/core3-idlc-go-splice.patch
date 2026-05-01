@@ -1,0 +1,25 @@
+diff --git a/MMOCoreORB/cmake/Modules/FindEngine3.cmake b/MMOCoreORB/cmake/Modules/FindEngine3.cmake
+index 49d72bf884..973119ee5d 100644
+--- a/MMOCoreORB/cmake/Modules/FindEngine3.cmake
++++ b/MMOCoreORB/cmake/Modules/FindEngine3.cmake
+@@ -157,6 +157,20 @@ ENDIF (ENGINE3_FOUND)
+ 
+ SET(IDLC_JAVA_ARGS -XX:TieredStopAtLevel=1 -client -Xmx128M -cp ${IDLC_BIN_DIR}/idlc.jar org.sr.idlc.compiler.Compiler)
+ 
++# idlc-go splice: when USE_IDLC_GO points at the idlc-go binary, divert the IDL
++# build step to it instead of `java -cp idlc.jar ...`. The custom_command in
++# src/CMakeLists.txt expands to `${Java_JAVA_EXECUTABLE} ${IDLC_JAVA_ARGS} ...`
++# so we override both vars: the executable becomes idlc-go, and the JAR-loader
++# args go away.
++IF (DEFINED ENV{USE_IDLC_GO})
++  SET(USE_IDLC_GO $ENV{USE_IDLC_GO})
++ENDIF()
++IF (USE_IDLC_GO)
++  MESSAGE(STATUS "idlc-go splice: using ${USE_IDLC_GO} for IDL compilation")
++  SET(Java_JAVA_EXECUTABLE ${USE_IDLC_GO})
++  SET(IDLC_JAVA_ARGS "")
++ENDIF()
++
+ MARK_AS_ADVANCED(
+   IDLC_BIN_DIR
+   ENGINE3_LIBRARY

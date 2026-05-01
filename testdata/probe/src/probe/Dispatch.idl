@@ -1,0 +1,55 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+class Dispatch extends ManagedObject {
+	// Baseline method shapes.
+	public native void plainNative();
+	public void plainBody() {}
+	public abstract void abstractWithBody() {}
+	public abstract native void abstractNative();
+
+	// @local family.
+	@local
+	public native void localNative();
+
+	@local
+	public void localBody() {}
+
+	// @nativeStub family — `__name()` companion in the protected stub
+	// section, body in the .cpp uses `__name`.
+	@nativeStub
+	public native void nativeStub();
+
+	@nativeStub
+	public abstract native void nativeStubAbstract();
+
+	// @virtualStub family — adds `virtual ` to the stub-class decl.
+	@virtualStub
+	public native void virtualStub();
+
+	@virtualStub
+	public abstract native void virtualStubAbstract();
+
+	// Combinations.
+	@nativeStub
+	@local
+	public native void nativeStubLocal();
+
+	@virtualStub
+	@local
+	public native void virtualStubLocal();
+
+	@nativeStub
+	@virtualStub
+	public native void nativeAndVirtualStub();
+
+	// @noImplementationDeclaration — suppress the impl-class decl for
+	// methods the impl provides as boilerplate (writeJSON / readObject).
+	@noImplementationDeclaration
+	public native void noImplDecl();
+
+	// Visibility variants.
+	protected native void protectedMethod();
+	private native void privateMethod();
+}

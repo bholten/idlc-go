@@ -1,0 +1,50 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+class Locking extends ManagedObject {
+	public native void plain(int x);
+
+	@preLocked
+	public native void preLockedOnly();
+
+	@arg1preLocked
+	public native void arg1OnlyLocked(ManagedObject obj);
+
+	@arg2preLocked
+	public native void arg2OnlyLocked(int x, ManagedObject obj);
+
+	@preLocked
+	@arg1preLocked
+	public native void preAndArg1(ManagedObject obj);
+
+	@preLocked
+	@arg1preLocked
+	@arg2preLocked
+	public native void preAndArg1AndArg2(ManagedObject a, ManagedObject b);
+
+	@read
+	public native int readPlain();
+
+	@dirty
+	public native int dirtyPlain();
+
+	@read
+	@preLocked
+	public native int readPreLocked(int x);
+
+	@dirty
+	@arg1preLocked
+	public native void dirtyArg1Locked(ManagedObject obj);
+
+	@local
+	@preLocked
+	public void localPreLocked(int x) {
+	}
+
+	@local
+	@dirty
+	public int localDirty() {
+		return 1;
+	}
+}

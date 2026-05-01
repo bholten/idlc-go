@@ -1,0 +1,37 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+class Constants extends ManagedObject {
+	// int (and variants) — corpus only has decimal positive ints.
+	public static final int CONST_INT = 5;
+	public static final int CONST_INT_HEX = 0xFF;
+	public static final int CONST_INT_NEG = -1;
+	public static final int CONST_INT_ZERO = 0;
+
+	// unsigned int — corpus has positive decimals, also tests the
+	// `unsigned static const int` reorder quirk.
+	public static final unsigned int CONST_UINT = 100;
+	public static final unsigned int CONST_UINT_HEX = 0xFFFFFFFF;
+
+	// long / unsigned long — corpus doesn't have these as constants.
+	public static final long CONST_LONG = 12345;
+	public static final long CONST_LONG_HEX = 0xFF;
+	public static final unsigned long CONST_ULONG = 999;
+
+	// short / unsigned short — corpus doesn't have these either.
+	public static final short CONST_SHORT = 7;
+	public static final unsigned short CONST_USHORT = 8;
+
+	// byte — corpus has this (PersistentMessage).
+	public static final byte CONST_BYTE = 1;
+	public static final byte CONST_BYTE_HEX = 0xFF;
+
+	// boolean — corpus doesn't have this as a constant.
+	public static final boolean CONST_BOOL_TRUE = true;
+	public static final boolean CONST_BOOL_FALSE = false;
+
+	// float — corpus doesn't have this as a constant.
+	public static final float CONST_FLOAT = 3.14;
+	public static final float CONST_FLOAT_NEG = -1.5;
+}

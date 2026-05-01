@@ -1,0 +1,41 @@
+package probe;
+
+import engine.core.ManagedObject;
+include engine.log.Logger;
+include system.thread.Lockable;
+
+@dirty
+class Inheritance extends ManagedObject implements Logger, Lockable {
+	private int counter;
+	private string name;
+
+	// Default-args IDL ctor with body — emits late, with the IDL body
+	// folded in (field initialization).
+	public Inheritance() {
+		counter = 0;
+		name = "default";
+	}
+
+	// IDL-declared finalize — triggers special-casing throughout
+	// (skip stub decl/body, skip impl boilerplate, dtor body =
+	// `Class::finalize();`).
+	public native void finalize();
+
+	public native void doNative();
+
+	@local
+	public int getCounter() {
+		return counter;
+	}
+
+	@read
+	public string getName() {
+		return name;
+	}
+
+	public abstract void abstractWithBody() {
+		counter = counter + 1;
+	}
+
+	public abstract native void abstractNative();
+}

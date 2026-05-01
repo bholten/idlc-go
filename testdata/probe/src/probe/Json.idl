@@ -1,0 +1,52 @@
+package probe;
+
+import engine.core.ManagedObject;
+include system.util.Vector;
+include system.lang.Time;
+
+@json
+class Json extends ManagedObject {
+	// Primitive fields.
+	private int intField;
+	private string stringField;
+	private boolean boolField;
+	private long longField;
+	private float floatField;
+
+	// Class fields — IDL-managed.
+	private ManagedObject classField;
+
+	// @dereferenced class field.
+	@dereferenced
+	private ManagedObject derefField;
+
+	// @weakReference class field.
+	@weakReference
+	private ManagedObject weakField;
+
+	// @dereferenced @weakReference combined.
+	@dereferenced
+	@weakReference
+	private ManagedObject derefWeakField;
+
+	// Generic fields.
+	private Vector<int> vecPrim;
+	private Vector<ManagedObject> vecClass;
+
+	// @dereferenced generic.
+	@dereferenced
+	private Vector<int> derefVecPrim;
+
+	// Non-IDL class field (Time is a system C++ utility, not IDL).
+	@dereferenced
+	private Time timeField;
+
+	// Transient field — should be excluded from writeJSON.
+	private transient int transientInt;
+	private transient ManagedObject transientClass;
+
+	// Static final constants — should be excluded from writeJSON
+	// (they're class-level, not instance state).
+	public static final int CONST_INT = 42;
+	public static final byte CONST_BYTE = 1;
+}
