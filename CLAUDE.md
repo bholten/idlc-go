@@ -6,7 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `idlc-go` is a Go reimplementation of `idlc.jar`, the CORBA-style IDL compiler used by SWGEmu's `engine3` distributed-object framework (Core3). The goal is to drop the Java/JRE dependency from the upstream toolchain by producing byte-identical (or, where acceptable, semantically equivalent) C++ output to what the obfuscated Allatori-packed JAR emits today.
 
-The full motivation, constraints, and execution plan are in `docs/idl-toolchain-feasibility.md` — read it before making non-trivial changes. It is the design doc, not optional context.
+**Documentation order of operations:**
+
+- `docs/idl-language-spec.md` — semi-formal reference for the IDL language and emit rules. Start here for "what does the JAR do for X?" questions; this is the spec the implementation tries to match.
+- `docs/jar-quirks.md` — catalog of specific JAR quirks and bugs we faithfully reproduce, with verification provenance.
+- `docs/idl-toolchain-feasibility.md` — design rationale and execution plan. Read this for "why is the project structured this way?"; it's the design doc, not the spec.
 
 **Status (in progress):** Thirteen IDLs (the entire `testdata/idl/` corpus) are byte-identical to the JAR's autogen tree (gated by `internal/golden`):
 
