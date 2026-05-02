@@ -878,9 +878,11 @@ func findClassLocalVars(lines []string, ctx *bodyCtx) map[int]localClassDecl {
 		typeName := m[2]
 		ident := m[4]
 
+		managed := false
 		switch {
 		case ctx.registry.IsManagedShortName(typeName):
 			out[i] = localClassDecl{typeName: typeName, ident: ident, managed: true}
+			managed = true
 		case ctx.registry.IsNoPODShortName(typeName):
 			out[i] = localClassDecl{typeName: typeName, ident: ident, managed: false}
 		default:
@@ -888,6 +890,12 @@ func findClassLocalVars(lines []string, ctx *bodyCtx) map[int]localClassDecl {
 		}
 
 		ctx.classNames = append(ctx.classNames, ident)
+		// Managed locals wrap as `ManagedReference<X*>`; noPOD locals are
+		// raw `X*`. Only managed wraps need `.get()` to extract the raw
+		// pointer for `dynamic_cast<>` operands.
+		if managed {
+			ctx.smartPtrNames = append(ctx.smartPtrNames, ident)
+		}
 	}
 
 	return out
@@ -1180,6 +1188,9 @@ type bodyCtx struct {
 	// and no `&`-coerce is needed.
 	weakRefFields   []string       // @weakReference fields in this class — body access uses .get()-> instead of ->
 	classNames      []string       // class-typed identifiers (fields + params + locals) — get .X → ->X
+	smartPtrNames   []string       // subset of classNames stored as Reference<X*>/ManagedReference<X*> — need
+	// `.get()` for `dynamic_cast<>` operand. Includes all non-@dereferenced fields and managed locals;
+	// excludes raw-pointer params and noPOD locals.
 	importedClasses []string       // unqualified imported class names — get .X → ::X
 	superImpl       string         // BaseImpl name for `super.method` → `BaseImpl::method` rewrite
 	superClass      string         // unqualified parent class name; entry point for inherited-field lookups
@@ -1236,6 +1247,7 @@ func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 		// rewrite. Engine3 utility-type fields are nearly always marked
 		// `@dereferenced` and thus already filtered out above.
 		ctx.classNames = append(ctx.classNames, f.Name)
+		ctx.smartPtrNames = append(ctx.smartPtrNames, f.Name)
 	}
 
 	for _, p := range params {
@@ -1539,7 +1551,7 @@ func rewriteCodeSegment(seg string, ctx bodyCtx) string {
 	seg = rewriteClassDot(seg, ctx.classNames)
 	seg = rewriteImportedClassDot(seg, ctx.importedClasses)
 	seg = rewritePrimitiveTypes(seg)
-	seg = rewriteCStyleCast(seg, ctx.registry)
+	seg = rewriteCStyleCast(seg, ctx.registry, ctx.smartPtrNames)
 
 	return seg
 }
@@ -1586,15 +1598,23 @@ func rewriteChainedCallDot(seg string) string {
 // rewriteCStyleCast rewrites Java-style downcasts on IDL class types:
 //
 //	(ClassName) ident  →  dynamic_cast<ClassName*>(ident)
+//	(ClassName) ident  →  dynamic_cast<ClassName*>(ident.get())   (when ident is smart-pointer-wrapped)
 //
 // where ClassName is a registry-known IDL class (managed or noPOD).
-// Engine3 utility types and primitives are ignored — those use
-// by-value semantics and don't need pointer-cast rewrites.
+// `dynamic_cast` requires a raw pointer; smart-pointer-wrapped operands
+// (managed fields, managed locals) need `.get()` to extract the raw
+// pointer first. Raw-pointer operands (params, noPOD locals) work
+// directly. Engine3 utility types and primitives are ignored.
 var cStyleCastRe = regexp.MustCompile(`\(([A-Z][A-Za-z0-9_]*)\)\s*([a-zA-Z_][a-zA-Z0-9_]*)`)
 
-func rewriteCStyleCast(seg string, reg *sema.Registry) string {
+func rewriteCStyleCast(seg string, reg *sema.Registry, smartPtrNames []string) string {
 	if reg == nil {
 		return seg
+	}
+
+	smartSet := map[string]bool{}
+	for _, n := range smartPtrNames {
+		smartSet[n] = true
 	}
 
 	return cStyleCastRe.ReplaceAllStringFunc(seg, func(match string) string {
@@ -1606,7 +1626,11 @@ func rewriteCStyleCast(seg string, reg *sema.Registry) string {
 		if !reg.IsManagedShortName(typeName) && !reg.IsNoPODShortName(typeName) {
 			return match
 		}
-		return "dynamic_cast<" + typeName + "*>(" + ident + ")"
+		operand := ident
+		if smartSet[ident] {
+			operand = ident + ".get()"
+		}
+		return "dynamic_cast<" + typeName + "*>(" + operand + ")"
 	})
 }
 
@@ -1631,6 +1655,7 @@ func rewritePrimitiveTypes(line string) string {
 var bodyTypeRewrites = map[string]string{
 	"string":  "String",
 	"unicode": "UnicodeString",
+	"boolean": "bool",
 }
 
 // rewriteSuperDot replaces `super.X` and `super.field.X` references
