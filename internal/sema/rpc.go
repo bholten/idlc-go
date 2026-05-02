@@ -353,7 +353,7 @@ func WireMangle(t parser.Type) string {
 		return "Unicode"
 	case "boolean":
 		return "Boolean"
-	case "byte":
+	case "byte", "unsigned byte":
 		return "Byte"
 	case "short":
 		return "SignedShort"
