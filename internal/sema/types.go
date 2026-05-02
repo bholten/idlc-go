@@ -118,7 +118,7 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 			return "ManagedReference<" + rendered + "* >"
 		}
 		if f.WeakRef {
-			return "ManagedWeakReference<" + rendered + "* >"
+			return "WeakReference<" + rendered + "* >"
 		}
 		return "Reference<" + rendered + "* >"
 	}
@@ -139,7 +139,15 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 		return "ManagedReference<" + head + " >"
 	}
 	if f.WeakRef {
-		return "ManagedWeakReference<" + head + "* >"
+		// `@weakReference` on a managed-object class wraps as
+		// `ManagedWeakReference<X*>`; on a non-managed (engine3 header)
+		// type the wrapper is the simpler `WeakReference<X*>` —
+		// `ManagedWeakReference` requires the wrapped type to expose
+		// `_getObjectID()` which non-managed types don't.
+		if idlManagedHead {
+			return "ManagedWeakReference<" + head + "* >"
+		}
+		return "WeakReference<" + head + "* >"
 	}
 	if idlManagedHead {
 		return "ManagedReference<" + head + "* >"
@@ -147,19 +155,27 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 	return "Reference<" + head + "* >"
 }
 
-// renderGenericInners renders the inner of a generic type with class-arg
-// wrapping (`ManagedReference<X* >` for IDL-managed args, bare `X*` for
-// non-IDL class args, plain for primitives). Returns just `Head<args>`
-// — the outer wrap (if any) is the caller's responsibility.
+// renderGenericInners renders the inner args of a generic type. The
+// rendering of each arg depends on the OUTER head:
 //
-// Nested generics (`Reference<GalaxyBanEntry>` inside a `VectorMap<...>`)
-// recurse: the inner generic's class arg gets wrapped per the same
-// rules, so `Reference<GalaxyBanEntry>` → `Reference<GalaxyBanEntry*>`.
+//   - Smart-pointer wrappers (Reference/ManagedReference/ManagedWeakReference):
+//     inner class args become bare `X*`; nested generics get `*` appended
+//     after the close `>`. The smart-pointer's job is to pointer-wrap
+//     whatever it contains, so no further wrap inside.
+//   - Container generics (Vector/VectorMap/SortedVector/etc.): inner class
+//     args get wrapped — `ManagedReference<X*>` for IDL-managed, `Reference<X*>`
+//     for everything else. Nested generics pass through as-is.
+//   - Primitives always pass through unchanged.
+//
+// Returns just `Head<args>` — the outer wrap (if any) is the caller's
+// responsibility (CppRenderFieldType wraps with Reference/ManagedReference
+// when the field's head is itself non-primitive).
 func renderGenericInners(t parser.Type, reg *Registry) string {
 	head := cppHead(t.Name)
+	smartPtr := isSmartPointerWrapper(head)
 	args := splitGenericArgs(t.Generics)
 	for i, a := range args {
-		args[i] = renderGenericArg(a, reg)
+		args[i] = renderGenericArg(a, reg, smartPtr)
 	}
 	joined := strings.Join(args, ", ")
 	if strings.HasSuffix(joined, ">") {
@@ -171,11 +187,15 @@ func renderGenericInners(t parser.Type, reg *Registry) string {
 	return head + "<" + joined + ">"
 }
 
-// renderGenericArg renders one argument of a generic type. Recurses into
-// nested generics; flat class names get the `*` suffix; primitives pass
-// through. IDL-managed class names get the `ManagedReference<X*>` wrap
-// (matching renderGenericInners' top-level rule).
-func renderGenericArg(a string, reg *Registry) string {
+// renderGenericArg renders one argument of a generic type. The
+// `smartPtrOuter` flag tells the leaf logic which form to emit for
+// non-primitive args:
+//
+//   - `Reference<NonManagedClass>`     → `Reference<NonManagedClass*>`        (bare `*`)
+//   - `Vector<NonManagedClass>`        → `Vector<Reference<NonManagedClass*>>` (Reference-wrap)
+//   - `Reference<Vector<X>>`           → `Reference<Vector<X>*>`              (`*` after nested `>`)
+//   - `Vector<Reference<X>>`           → `Vector<Reference<X*>>`              (recurse, no extra wrap)
+func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 	a = strings.TrimSpace(a)
 	if IsPrimitive(a) {
 		return cppHead(a)
@@ -184,12 +204,30 @@ func renderGenericArg(a string, reg *Registry) string {
 		innerName := a[:open]
 		inner := a[open+1 : len(a)-1]
 		nested := parser.Type{Name: innerName, Generics: inner}
-		return renderGenericInners(nested, reg)
+		rendered := renderGenericInners(nested, reg)
+		if smartPtrOuter {
+			return rendered + "*"
+		}
+		return rendered
+	}
+	if smartPtrOuter {
+		return cppHead(a) + "*"
 	}
 	if reg.classifies(a) == idlManaged {
 		return "ManagedReference<" + cppHead(a) + "* >"
 	}
-	return cppHead(a) + "*"
+	return "Reference<" + cppHead(a) + "* >"
+}
+
+// isSmartPointerWrapper reports whether `head` names an engine3
+// pointer-wrapper template (Reference / ManagedReference / WeakReference
+// / ManagedWeakReference / TemplateReference / etc.). The convention in
+// the engine3 codebase is that any such wrapper's class name ends in
+// `Reference`, and inside any such wrapper the inner type is always
+// pointer-like — i.e. `Reference<X>` means `Reference<X*>`, not a
+// re-wrapped `Reference<Reference<X*>>`.
+func isSmartPointerWrapper(head string) bool {
+	return strings.HasSuffix(head, "Reference")
 }
 
 // splitGenericArgs splits a generic-args string by top-level commas,
@@ -255,7 +293,7 @@ func CppRenderPODFieldType(f Field, reg *Registry) string {
 			return "ManagedReference<" + rendered + "POD* >"
 		}
 		if f.WeakRef {
-			return "ManagedWeakReference<" + rendered + "* >"
+			return "WeakReference<" + rendered + "* >"
 		}
 		return "Reference<" + rendered + "* >"
 	}
@@ -279,29 +317,30 @@ func CppRenderPODFieldType(f Field, reg *Registry) string {
 		}
 		return "ManagedReference<" + head + "POD* >"
 	}
+	if f.WeakRef {
+		return "WeakReference<" + head + "* >"
+	}
 	return "Reference<" + head + "* >"
 }
 
-// renderPODGenericInners is the POD analogue of renderGenericInners:
-// inner class args wrap as `ManagedReference<XPOD* >` for IDL-managed,
-// bare `X*` for non-IDL. Recurses into nested generics.
+// renderPODGenericInners is the POD analogue of renderGenericInners.
+// Same head-aware logic, but the leaf-class wrap uses the POD class name
+// for IDL-managed args.
 func renderPODGenericInners(t parser.Type, reg *Registry) string {
 	head := cppHead(t.Name)
+	smartPtr := isSmartPointerWrapper(head)
 	args := splitGenericArgs(t.Generics)
 	for i, a := range args {
-		args[i] = renderPODGenericArg(a, reg)
+		args[i] = renderPODGenericArg(a, reg, smartPtr)
 	}
 	joined := strings.Join(args, ", ")
 	if strings.HasSuffix(joined, ">") {
-		// Avoid `>>` by inserting a separating space (matches JAR /
-		// pre-C++14 template-parse convention). Also covers chains like
-		// `> >` from a previously-rendered nested generic.
 		return head + "<" + joined + " >"
 	}
 	return head + "<" + joined + ">"
 }
 
-func renderPODGenericArg(a string, reg *Registry) string {
+func renderPODGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 	a = strings.TrimSpace(a)
 	if IsPrimitive(a) {
 		return cppHead(a)
@@ -310,12 +349,24 @@ func renderPODGenericArg(a string, reg *Registry) string {
 		innerName := a[:open]
 		inner := a[open+1 : len(a)-1]
 		nested := parser.Type{Name: innerName, Generics: inner}
-		return renderPODGenericInners(nested, reg)
+		rendered := renderPODGenericInners(nested, reg)
+		if smartPtrOuter {
+			return rendered + "*"
+		}
+		return rendered
+	}
+	if smartPtrOuter {
+		// Leaf class inside Reference<>/ManagedReference<>/...: managed
+		// gets the POD-class suffix, others stay bare.
+		if reg.classifies(a) == idlManaged {
+			return cppHead(a) + "POD*"
+		}
+		return cppHead(a) + "*"
 	}
 	if reg.classifies(a) == idlManaged {
 		return "ManagedReference<" + cppHead(a) + "POD* >"
 	}
-	return cppHead(a) + "*"
+	return "Reference<" + cppHead(a) + "* >"
 }
 
 func cppHead(idlName string) string {

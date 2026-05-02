@@ -1158,6 +1158,7 @@ type bodyCtx struct {
 	// these additionally trigger the bare-form `field` → `(&field)` rewrite. Primitive `@dereferenced`
 	// fields (e.g. `string jtlZoneName`) skip the bare-form because the field is already by-value
 	// and no `&`-coerce is needed.
+	weakRefFields   []string       // @weakReference fields in this class — body access uses .get()-> instead of ->
 	classNames      []string       // class-typed identifiers (fields + params + locals) — get .X → ->X
 	importedClasses []string       // unqualified imported class names — get .X → ::X
 	superImpl       string         // BaseImpl name for `super.method` → `BaseImpl::method` rewrite
@@ -1194,15 +1195,27 @@ func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 			continue
 		}
 
+		if sema.IsPrimitive(f.IDLType.Name) {
+			continue
+		}
+
+		if f.WeakRef {
+			// `@weakReference` field. C++ rendering wraps as
+			// `ManagedWeakReference<X*>` (or `WeakReference<X*>`); both
+			// require `.get()->` to reach the underlying pointer for
+			// member access. Tracked separately from classNames so the
+			// rewrite doesn't double-fire.
+			ctx.weakRefFields = append(ctx.weakRefFields, f.Name)
+			continue
+		}
+
 		// Non-primitive fields render as `Reference<X*>` /
 		// `ManagedReference<X*>` / `Reference<Vector<X>*>` in C++ (see
 		// CppRenderFieldType) — pointer-like. Body access uses `->`, so
 		// add the field's identifier to classNames for the `.X → ->X`
 		// rewrite. Engine3 utility-type fields are nearly always marked
 		// `@dereferenced` and thus already filtered out above.
-		if !sema.IsPrimitive(f.IDLType.Name) {
-			ctx.classNames = append(ctx.classNames, f.Name)
-		}
+		ctx.classNames = append(ctx.classNames, f.Name)
 	}
 
 	for _, p := range params {
@@ -1496,6 +1509,7 @@ func rewriteCodeSegment(seg string, ctx bodyCtx) string {
 	seg = rewriteNull(seg)
 	seg = rewriteThis(seg)
 	seg = rewriteDereferenced(seg, ctx.dereferencedFields, ctx.dereferencedClassFields)
+	seg = rewriteWeakRefFields(seg, ctx.weakRefFields)
 	seg = rewriteChainedCallDot(seg)
 	seg = rewriteSuperDot(seg, ctx)
 	seg = rewriteClassDot(seg, ctx.classNames)
@@ -1504,6 +1518,26 @@ func rewriteCodeSegment(seg string, ctx bodyCtx) string {
 	seg = rewriteCStyleCast(seg, ctx.registry)
 
 	return seg
+}
+
+// rewriteWeakRefFields rewrites `field.X` → `field.get()->X` for any
+// `@weakReference` field in the current class. The `Managed`?`WeakReference<>`
+// wrapper requires `.get()` to extract the underlying pointer before
+// member access; plain `field->X` doesn't compile because the wrapper
+// lacks `operator->`. Bare references (`return field;` or assignments
+// like `field = NULL`) pass through untouched — assignment is handled
+// by the wrapper's `operator=`.
+func rewriteWeakRefFields(line string, fields []string) string {
+	for _, f := range fields {
+		key := "wr:" + f
+		re, ok := identRewriters[key]
+		if !ok {
+			re = regexp.MustCompile(`\b` + regexp.QuoteMeta(f) + `\b\.`)
+			identRewriters[key] = re
+		}
+		line = re.ReplaceAllString(line, f+".get()->")
+	}
+	return line
 }
 
 // rewriteChainedCallDot rewrites `).X` → `)->X` for chained method
