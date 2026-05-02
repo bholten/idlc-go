@@ -83,13 +83,22 @@ func buildProbeRegistry(t *testing.T, root string) *sema.Registry {
 		"probe.LocalVar",
 		"probe.Locking",
 		"probe.NestedGenerics",
+		"probe.ParentFields",
+		"probe.ParentFieldsBase",
 		"probe.Params",
 		"probe.Returns",
 		"probe.WeakRef",
 	} {
 		reg.Add(qname)
 	}
-	_ = root
+	// Also populate classMeta (parent name + per-class field annotations)
+	// so the body rewriter's inherited-field lookup works in the probe
+	// sandbox. The manual Add calls above already classify each probe
+	// class; this pass walks the same probe IDLs and records their
+	// fields.
+	if err := reg.LoadFromDir(filepath.Join(root, "testdata", "probe", "src", "probe")); err != nil {
+		t.Fatal(err)
+	}
 	return reg
 }
 

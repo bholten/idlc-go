@@ -1,0 +1,23 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+// Base class for the ParentFields probe. Declares one of each kind of
+// field annotation that the subclass-side body rewriter has to resolve
+// when it sees `super.<field>.X`.
+class ParentFieldsBase extends ManagedObject {
+	// Plain managed-class field. Subclass `super.plainField.X` should
+	// emit `ParentFieldsBaseImplementation::plainField->X`.
+	protected ManagedObject plainField;
+
+	// `@weakReference` on a managed class. Subclass `super.weakField.X`
+	// should emit
+	//   ParentFieldsBaseImplementation::weakField.getForUpdate().get()->X
+	// because the wrapper has no `operator->`.
+	@weakReference
+	protected ManagedObject weakField;
+}

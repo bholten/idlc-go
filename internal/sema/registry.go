@@ -54,8 +54,9 @@ type ClassMeta struct {
 // them when chasing inherited names.
 type ClassMetaField struct {
 	Name         string
-	WeakRef      bool // @weakReference  → ManagedWeakReference<T*>; body needs `.getForUpdate().get()->`
-	Dereferenced bool // @dereferenced   → by-value; body uses `(&field)->` for member access
+	TypeName     string // unqualified IDL type name; the rewriter consults the registry for managed-vs-non-managed
+	WeakRef      bool   // @weakReference  → ManagedWeakReference<T*>; body needs `.getForUpdate().get()->`
+	Dereferenced bool   // @dereferenced   → by-value; body uses `(&field)->` for member access
 }
 
 func NewRegistry() *Registry {
@@ -248,6 +249,7 @@ func (r *Registry) LoadFromDir(dir string) error {
 			case *parser.Field:
 				meta.Fields = append(meta.Fields, ClassMetaField{
 					Name:         v.Name,
+					TypeName:     v.Type.Name,
 					WeakRef:      hasAnnotation(v.Annotations, "weakReference"),
 					Dereferenced: hasAnnotation(v.Annotations, "dereferenced"),
 				})
@@ -256,6 +258,37 @@ func (r *Registry) LoadFromDir(dir string) error {
 		r.classMeta[f.Class.Name] = meta
 		return nil
 	})
+}
+
+// IsAncestor reports whether `candidate` (unqualified) is anywhere in
+// `startClass`'s inheritance chain — including `startClass` itself.
+// Walks via `classMeta[]Parent`; stops when the chain reaches a class
+// the registry doesn't know.
+//
+// Used by the header emitter to decide whether an `import` should be
+// rendered as a regular `#include` (ancestor — already pulled in
+// transitively via the parent's header) or as a forward-decl block
+// (not an ancestor — only forward-needs).
+func (r *Registry) IsAncestor(startClass, candidate string) bool {
+	if r == nil || startClass == "" || candidate == "" {
+		return false
+	}
+	visited := map[string]bool{}
+	for cur := startClass; cur != ""; {
+		if cur == candidate {
+			return true
+		}
+		if visited[cur] {
+			return false
+		}
+		visited[cur] = true
+		meta, ok := r.classMeta[cur]
+		if !ok {
+			return false
+		}
+		cur = meta.Parent
+	}
+	return false
 }
 
 // LookupInheritedField walks the parent chain starting at `startClass`

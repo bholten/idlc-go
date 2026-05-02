@@ -1628,27 +1628,28 @@ var bodyTypeRewrites = map[string]string{
 
 // rewriteSuperDot replaces `super.X` and `super.field.X` references
 // with their C++ impl-side form. The prefix is the IMMEDIATE parent's
-// `*Implementation` class (`<DirectParent>Impl::`), but the unwrap form
-// for `super.field.X` depends on the field's annotation in whichever
-// ancestor declared it — so we walk the inheritance chain via the
-// registry's classMeta to find it.
+// `*Implementation` class (`<DirectParent>Impl::`); the unwrap form
+// for `super.field.X` depends on the parent field's type AND
+// annotations. We walk the inheritance chain via the registry's
+// classMeta to look up both.
 //
 // Cases (verified against JAR emit):
 //
-//	super.method(args)          → BaseImpl::method(args)
-//	super.field.method()        → BaseImpl::field->method()                       (plain / @dereferenced)
-//	super.weakRefField.method() → BaseImpl::field.getForUpdate().get()->method()  (@weakReference)
+//	super.method(args)               → BaseImpl::method(args)
+//	super.weakManagedField.method()  → BaseImpl::field.getForUpdate().get()->method()  (@weakReference)
+//	super.plainManagedField.method() → BaseImpl::field.getForUpdate()->method()        (plain managed → ManagedReference<X*>)
+//	super.derefField.method()        → BaseImpl::field->method()                       (@dereferenced — wrapper has operator->)
+//	super.plainNonMgmtField.method() → BaseImpl::field->method()                       (plain Reference<X*> — has operator->)
 //
-// `@dereferenced` parent fields use plain `->` because the corpus's
-// `@dereferenced` parent fields are typedefs over `Reference<X>` (e.g.
-// `CreatureTemplateReference`) — they already have `operator->`. The
-// `(&field)->` form is only correct for `@dereferenced` over a true
-// by-value type, which doesn't appear at parent level in the corpus.
+// The `getForUpdate()` insertion is the JAR's way of making the
+// write-barrier on a `ManagedReference<>` explicit before reading the
+// underlying pointer. `Reference<>` doesn't need it because it's a
+// plain smart pointer.
 //
 // `LookupInheritedField` returns false when the field's declaring class
 // isn't in the registry (e.g. an engine3-side field we never scanned).
-// In that case we fall back to the plain-class form, which is the
-// most common case across the corpus.
+// We fall back to the plain `->` form — the most common case for
+// non-managed parent fields.
 func rewriteSuperDot(line string, ctx bodyCtx) string {
 	if ctx.superImpl == "" {
 		return line
@@ -1666,10 +1667,16 @@ func rewriteSuperDot(line string, ctx bodyCtx) string {
 		}
 		fieldName := m[1]
 		fld, found := ctx.registry.LookupInheritedField(ctx.superClass, fieldName)
-		if found && fld.WeakRef {
+		switch {
+		case found && fld.WeakRef:
 			return ctx.superImpl + "::" + fieldName + ".getForUpdate().get()->"
+		case found && fld.Dereferenced:
+			return ctx.superImpl + "::" + fieldName + "->"
+		case found && ctx.registry.IsManagedShortName(fld.TypeName):
+			return ctx.superImpl + "::" + fieldName + ".getForUpdate()->"
+		default:
+			return ctx.superImpl + "::" + fieldName + "->"
 		}
-		return ctx.superImpl + "::" + fieldName + "->"
 	})
 
 	re, ok := identRewriters["super:"+ctx.superImpl]

@@ -85,9 +85,10 @@ func emitHeaderPrelude(w io.Writer, m *sema.Model, reg *sema.Registry) {
 	// — every IDL import is treated as a regular `#include`.
 	parent := m.Class.Base
 	allIncludes := reg.IsNonManagedParent(parent)
+	thisClass := m.Class.Name
 
 	for _, imp := range m.Imports {
-		if !allIncludes && importIsForwardDecl(imp, parent, reg) {
+		if !allIncludes && importIsForwardDecl(imp, thisClass, parent, reg) {
 			emitImportForwardDecl(w, imp, reg)
 		}
 	}
@@ -101,7 +102,7 @@ func emitHeaderPrelude(w io.Writer, m *sema.Model, reg *sema.Registry) {
 	}
 
 	for _, imp := range m.Imports {
-		if allIncludes || !importIsForwardDecl(imp, parent, reg) {
+		if allIncludes || !importIsForwardDecl(imp, thisClass, parent, reg) {
 			fmt.Fprintf(w, "#include \"%s\"\n\n", importToInclude(imp))
 		}
 	}
@@ -132,9 +133,20 @@ func emitMockHeader(w io.Writer, m *sema.Model) {
 
 // importIsForwardDecl reports whether the given import qname should be
 // emitted as a forward-decl block (IDL class) rather than a direct
-// `#include`. The parent class always goes in the include section
-// regardless of IDL-ness.
-func importIsForwardDecl(qname, parent string, reg *sema.Registry) bool {
+// `#include`. The decision is simpler than it looks:
+//
+//   - non-IDL imports (engine3 utility headers like Vector, Logger):
+//     always `#include` (we don't generate a forward-decl block for
+//     types we have no IDL for).
+//   - immediate parent: always `#include` (the parent's full type is
+//     needed for the inheritance declaration).
+//   - engine3 IDL classes (`engine.*`, `system.*`): always `#include`.
+//     The JAR treats engine3 IDL classes the same as utility headers
+//     for inclusion purposes — empirically verified against
+//     ParentFields/LairObserver/etc.
+//   - everything else (project IDL classes that aren't the immediate
+//     parent): forward-decl.
+func importIsForwardDecl(qname, thisClass, parent string, reg *sema.Registry) bool {
 	if reg == nil {
 		return false
 	}
@@ -143,13 +155,26 @@ func importIsForwardDecl(qname, parent string, reg *sema.Registry) bool {
 		return false
 	}
 
-	// Compare unqualified name; the parent in m.Class.Base is unqualified
-	// (matches the trailing segment of the qname).
 	if parent != "" && strings.HasSuffix(qname, "."+parent) {
 		return false
 	}
 
+	if isEngine3Qname(qname) {
+		return false
+	}
+
+	_ = thisClass
 	return true
+}
+
+// isEngine3Qname reports whether the given import qname resolves to an
+// engine3 IDL class — `engine.*` (Observable, ManagedObject, ...) or
+// `system.*` (String, Time, Lockable, ...). The JAR treats these
+// uniformly with `#include` even when they're transitively reachable
+// through the parent's header, presumably because engine3 itself
+// always provides the full headers.
+func isEngine3Qname(qname string) bool {
+	return strings.HasPrefix(qname, "engine.") || strings.HasPrefix(qname, "system.")
 }
 
 // emitImportForwardDecl writes the JAR's namespace + class-decl block

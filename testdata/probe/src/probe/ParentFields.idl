@@ -1,0 +1,42 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+import probe.ParentFieldsBase;
+
+// Probe for inherited-field tracking via the registry's classMeta walk.
+//
+// `super.<parentField>.X` is the only construct (so far) where the body
+// rewriter has to consult the parent class's metadata to choose the C++
+// unwrap form. Plain fields use `BaseImpl::field->X`; `@weakReference`
+// fields need `BaseImpl::field.getForUpdate().get()->X`.
+//
+// Without `Registry.classMeta` populated for ParentFieldsBase, the
+// rewriter would default to `BaseImpl::field->X` for everything, which
+// breaks weak-ref access at the C++ level (no `operator->` on
+// ManagedWeakReference<>).
+class ParentFields extends ParentFieldsBase {
+	@local
+	public void plainParentAccess() {
+		// super.plainField.X → ParentFieldsBaseImplementation::plainField->X
+		super.plainField.updateForWrite();
+	}
+
+	@local
+	public void weakParentAccess() {
+		// super.weakField.X → ParentFieldsBaseImplementation::weakField.getForUpdate().get()->X
+		super.weakField.updateForWrite();
+	}
+
+	@local
+	public void chainedThroughPlainField() {
+		// Chain through a parent field — the chained `).X → )->X` rule
+		// must run AFTER the super-rewrite so the synthesized arrow form
+		// stays intact.
+		super.plainField.updateForWrite();
+		super.plainField.lock();
+	}
+}
