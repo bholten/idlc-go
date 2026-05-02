@@ -48,6 +48,7 @@ type Annotation struct {
 type Class struct {
 	Pos         lexer.Pos
 	Annotations []Annotation
+	Doc         string // raw `/** ... */` block preceding the `class` keyword, "" if none
 	Name        string
 	Base        string   // unqualified type from `extends`; "" if none
 	Implements  []string // unqualified types from `implements`

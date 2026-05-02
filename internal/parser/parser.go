@@ -74,9 +74,14 @@ func (p *Parser) ParseFile() (out *File, err error) {
 		break
 	}
 
+	classDoc := p.lx.TakeDocComment()
 	classAnns := p.parseAnnotations()
+	if classDoc == "" {
+		classDoc = p.lx.TakeDocComment()
+	}
 	cls := p.parseClass()
 	cls.Annotations = append(classAnns, cls.Annotations...)
+	cls.Doc = classDoc
 	f.Class = cls
 
 	p.expect(lexer.EOF)

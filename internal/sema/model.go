@@ -50,6 +50,7 @@ func (m *Model) HeaderPrefix() string {
 
 type Class struct {
 	Name     string
+	Doc      string // raw `/** ... */` text from the IDL preceding the class declaration, "" if none.
 	Base     string // "" when the class has no IDL `extends` (root class)
 	ImplName string
 	Adapter  string

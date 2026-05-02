@@ -10,6 +10,7 @@ import (
 // emitPODHeader writes the FooPOD class declaration.
 func emitPODHeader(w io.Writer, m *sema.Model) {
 	c := m.Class
+	emitDocComment(w, c.Doc)
 	fmt.Fprintf(w, "class %s : public %s {\n", c.POD, c.PODBase())
 	fmt.Fprintf(w, "public:\n")
 	for _, f := range serializableFields(c) {

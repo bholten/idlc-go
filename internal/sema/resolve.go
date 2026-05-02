@@ -30,6 +30,7 @@ func Resolve(f *parser.File) (*Model, error) {
 		IDLPath:    idlPath,
 		Class: Class{
 			Name:     className,
+			Doc:      f.Class.Doc,
 			Base:     f.Class.Base,
 			ImplName: className + "Implementation",
 			Adapter:  className + "Adapter",

@@ -1,0 +1,24 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+/**
+ * Probe for class-level doc-comment emission.
+ *
+ * The JAR transcribes a doc-comment block that immediately precedes
+ * a `class` declaration into the C++ output. The block goes before
+ * the class declaration in the .h, and the JAR emits it once per
+ * generated C++ class (stub, impl, etc.).
+ *
+ * Multi-line content with inline asterisks is preserved verbatim;
+ * the JAR doesn't re-flow the text.
+ */
+class ClassDoc extends ManagedObject {
+	@local
+	public void noop() {
+	}
+}

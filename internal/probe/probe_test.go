@@ -74,6 +74,7 @@ func buildProbeRegistry(t *testing.T, root string) *sema.Registry {
 		"engine.core.ManagedObject",
 		"probe.Cast",
 		"probe.ChainedCall",
+		"probe.ClassDoc",
 		"probe.Constants",
 		"probe.DerefManaged",
 		"probe.Dispatch",
@@ -88,6 +89,8 @@ func buildProbeRegistry(t *testing.T, root string) *sema.Registry {
 		"probe.ParentFieldsBase",
 		"probe.Params",
 		"probe.Returns",
+		"probe.SuperMethod",
+		"probe.SuperMethodBase",
 		"probe.WeakRef",
 	} {
 		reg.Add(qname)

@@ -1,0 +1,41 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+import probe.SuperMethodBase;
+
+// Probe for `super.method(args)` calls — parent-class METHOD calls
+// (distinct from `super.field.X` parent-FIELD access, which the
+// ParentFields probe covers).
+//
+// Verified shapes:
+//   super.method()              → SuperMethodBaseImplementation::method()
+//   super.method(args)          → SuperMethodBaseImplementation::method(args)
+//   super.method().X            → SuperMethodBaseImplementation::method()->X  (chained on returned class)
+class SuperMethod extends SuperMethodBase {
+	@local
+	public void callsVoidMethod() {
+		super.parentVoidMethod();
+	}
+
+	@local
+	public int callsMethodWithArgs(int a, int b) {
+		return super.parentMethodWithArgs(a, b);
+	}
+
+	@local
+	public void chainAfterSuperMethod() {
+		// Chain on the result of a `super.method()` call. The chained
+		// `).X → )->X` rule should fire.
+		super.parentReturningClass().updateForWrite();
+	}
+
+	@local
+	public void multipleSuperCallsInOneBody() {
+		super.parentVoidMethod();
+		super.parentMethodWithArgs(1, 2);
+	}
+}

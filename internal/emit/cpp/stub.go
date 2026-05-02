@@ -29,6 +29,7 @@ func methodVisibleOnStub(m sema.Method) bool {
 // emitStubHeader writes the public-facing stub class declaration.
 func emitStubHeader(w io.Writer, m *sema.Model) {
 	c := m.Class
+	emitDocComment(w, c.Doc)
 	fmt.Fprintf(w, "class %s : public %s {\n", c.Name, c.StubBase())
 	fmt.Fprintf(w, "public:\n")
 	emitConstantDecls(w, c)

@@ -1,0 +1,23 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+// Base class for the SuperMethod probe — declares methods that the
+// subclass calls via `super.X()`. The JAR validates that the methods
+// exist in the parent chain, so each probed call site needs a real
+// parent declaration. All methods are `@local` to skip RPC stub
+// generation (which would otherwise need entries in `legacyRPCSeeds`).
+class SuperMethodBase extends ManagedObject {
+	@local
+	public native void parentVoidMethod();
+
+	@local
+	public native int parentMethodWithArgs(int x, int y);
+
+	@local
+	public native ManagedObject parentReturningClass();
+}
