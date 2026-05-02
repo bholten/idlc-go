@@ -885,6 +885,12 @@ func findClassLocalVars(lines []string, ctx *bodyCtx) map[int]localClassDecl {
 			managed = true
 		case ctx.registry.IsNoPODShortName(typeName):
 			out[i] = localClassDecl{typeName: typeName, ident: ident, managed: false}
+		case ctx.registry.IsExternalHeaderShortName(typeName):
+			// Engine3 Object-derived classes (e.g. `engine.core.Task`) —
+			// pointer-wrap as `Task*`. Value types (`String`, `Time`,
+			// `Vector3`, ...) are excluded from `IsExternalHeaderShortName`
+			// and don't get the local-var rewrite at all.
+			out[i] = localClassDecl{typeName: typeName, ident: ident, managed: false}
 		default:
 			continue
 		}

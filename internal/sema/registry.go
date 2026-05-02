@@ -159,6 +159,54 @@ func (r *Registry) IsNoPODShortName(name string) bool {
 	return r.classifies(name) == idlNoPOD
 }
 
+// engine3ValueTypes is the hardcoded set of engine3-side class names
+// that are by-value (do NOT need pointer-wrapping when used as a local
+// variable in a body). These don't appear in `idlClasses` (no .idl
+// file) so the registry's classifies() returns classUnknown for them
+// — but the JAR knows they're value types and emits e.g.
+// `String name = ...;` rather than `String* name = ...;`. Anything
+// else loaded from `LoadExternalHeadersFromDir` is treated as
+// pointer-wrappable (e.g. `engine.core.Task` → `Task* task = ...;`).
+var engine3ValueTypes = map[string]bool{
+	"String":         true,
+	"UnicodeString":  true,
+	"Time":           true,
+	"Vector3":        true,
+	"Quaternion":     true,
+	"Matrix4":        true,
+	"AABB":           true,
+	"Coordinate":     true,
+	"StringId":       true,
+	"Mutex":          true,
+	"ReadWriteLock":  true,
+	"AtomicInteger":  true,
+	"AtomicBoolean":  true,
+	"AtomicLong":     true,
+	"Logger":         true,
+}
+
+// IsEngine3ValueType reports whether the given unqualified class name
+// is one of the engine3 value types — primitives in disguise that
+// don't get pointer-wrapped in body local-var declarations.
+func IsEngine3ValueType(name string) bool {
+	return engine3ValueTypes[name]
+}
+
+// IsExternalHeaderShortName reports whether `name` is an external
+// header that's NOT a value type — i.e., something we should treat as
+// pointer-wrapped in body locals, like `engine.core.Task`.
+func (r *Registry) IsExternalHeaderShortName(name string) bool {
+	if r == nil || engine3ValueTypes[name] {
+		return false
+	}
+	for q := range r.externalHeaders {
+		if i := strings.LastIndex(q, "."); i >= 0 && q[i+1:] == name {
+			return true
+		}
+	}
+	return false
+}
+
 // AddNoPOD registers an IDL class that has no POD companion — its
 // forward decl in headers omits the `class XPOD;` line.
 func (r *Registry) AddNoPOD(qname string) {
