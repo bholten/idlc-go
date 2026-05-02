@@ -1,0 +1,26 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe coverage for `transient static <prim>` field declarations:
+// these emit as `static <prim> X;` in the impl class header (the
+// hand-written .cpp provides the out-of-line definition like
+// `int CityManagerImplementation::cityUpdateInterval = 0;`). Without
+// the `static` prefix the .cpp's out-of-line def fails to link with
+// "non-static data member defined out-of-line". CityManager surfaced
+// this in the live Core3 build.
+class StaticField extends ManagedObject {
+	public transient static int counter;
+	public transient static unsigned int total;
+	public transient static byte version;
+	public transient static float scale;
+
+	// Reverse modifier order (`static transient` instead of `transient
+	// static`) — the parser is order-agnostic; both must produce the
+	// same `static <prim> X;` decl.
+	public static transient int reverseOrder;
+
+	// Mixed with non-static: ensure the `static` prefix only attaches
+	// to the static fields.
+	public transient int regular;
+}

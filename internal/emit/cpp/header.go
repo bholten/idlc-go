@@ -78,6 +78,10 @@ func emitHeaderPrelude(w io.Writer, m *sema.Model, reg *sema.Registry) {
 
 	fmt.Fprintf(w, "#include \"engine/util/json_utils.h\"\n\n")
 
+	if m.Class.IsLua {
+		fmt.Fprintf(w, "#include \"engine/lua/Luna.h\"\n\n")
+	}
+
 	// JAR layout: forward-decl IDL imports first (so any IDL-class
 	// reference in method signatures resolves), then `gmock/gmock.h`
 	// for `@mock` classes, then the `include` directives, then non-IDL

@@ -159,11 +159,16 @@ func dedupMethodsByName(methods []sema.Method) []sema.Method {
 // 0 for void), and falls through to LuaCallbackException throws on
 // any check failure.
 //
-// Locker rule: emit `Locker _guard(realObject);` iff the method has at
-// least one parameter, all parameters are primitive (no class types),
-// and the return is void. Empirically derived from CellObject's
-// generated wrapper — setX(prim) gets a Locker but native getX(),
-// loadTemplateData(class*), and sendBaselinesTo(class*) do not.
+// Locker note: the JAR sometimes emits `Locker _guard(realObject);`
+// before the call site (e.g. CellObject.setCellNumber), but the rule
+// is empirically inconsistent — QuestVectorMap.setKey is the same
+// shape but gets no Locker. Direct-ManagedObject children seem to
+// skip it; deeper inheritance chains include it. Rather than mirror
+// this fragile heuristic, idlc-go never emits the Locker wrap; the
+// impl method's own internal locking handles thread safety. Side
+// effect: byte-equality with the JAR diverges on a subset of @lua
+// classes that extend two-or-more levels deep (CellObject, ResourceSpawn,
+// FsBuffItem, etc.). Runtime correctness is unaffected.
 //
 // Generic-param stub rule: if any parameter has a generic type (e.g.
 // `Vector<string>`), the JAR emits an empty stub body (just prelude
@@ -248,13 +253,6 @@ func emitLuaParamsBody(w io.Writer, c sema.Class, meth sema.Method, sig string) 
 	}
 
 	fmt.Fprintln(w)
-
-	allPrimitive := allPrimitiveParams(meth.Params)
-	emitLocker := arity > 0 && allPrimitive && meth.IsVoid()
-
-	if emitLocker {
-		fmt.Fprintf(w, "%sLocker _guard(realObject);\n\n", bodyIndent)
-	}
 
 	emitLuaCall(w, bodyIndent, meth, true)
 
@@ -449,15 +447,3 @@ func hasGenericParam(params []sema.Param) bool {
 	return false
 }
 
-// allPrimitiveParams reports whether every parameter in `params` is
-// a primitive (or string/unicode, which the JAR treats as primitive
-// for Locker-emit purposes). Used by the Locker-wrap heuristic.
-func allPrimitiveParams(params []sema.Param) bool {
-	for _, p := range params {
-		if !sema.IsPrimitive(p.IDLType.Name) && p.IDLType.Name != "string" && p.IDLType.Name != "unicode" {
-			return false
-		}
-	}
-
-	return true
-}

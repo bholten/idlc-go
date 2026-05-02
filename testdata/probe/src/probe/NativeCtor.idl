@@ -1,0 +1,20 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe coverage for `public native Class();` — the IDL declares a
+// default ctor but the body is hand-written. The autogen impl source
+// must NOT emit a body (`<Class>Implementation::<Class>Implementation()
+// { _initializeImplementation(); ... }`) — the hand-written
+// `<Class>Implementation.cpp` provides one. Emitting both produces a
+// multiple-definition link error. Account.idl in Core3 surfaced this.
+//
+// The dummy ctor (`<Class>Implementation(DummyConstructorParameter*)`)
+// is still emitted; only the default ctor body is skipped.
+class NativeCtor extends ManagedObject {
+	public native NativeCtor();
+
+	public int getValue() {
+		return 0;
+	}
+}

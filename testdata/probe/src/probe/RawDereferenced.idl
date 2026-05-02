@@ -1,0 +1,28 @@
+package probe;
+
+import engine.core.ManagedObject;
+include system.lang.ref.WeakReference;
+include system.lang.ref.Reference;
+
+// Probe coverage for `@rawTemplate` interaction with `@dereferenced` on
+// a method return.
+//
+// Default `@rawTemplate(value = "X*")` on a method emits
+//   Head<X* >* getFoo();
+// (trailing `*` — return is by-pointer).
+//
+// Adding `@dereferenced` drops the trailing `*` so the return is
+// by-value:
+//   Head<X* > getFoo();
+// CreditObject.getOwner() in Core3 surfaced this — its hand-written
+// .cpp returns `WeakReference<CreatureObject*>` by value, so the
+// declaration must match or the autogen and hand-written halves
+// disagree on return type.
+class RawDereferenced extends ManagedObject {
+	@dereferenced
+	@rawTemplate(value = "ManagedObject*")
+	public native WeakReference getDereferencedRef();
+
+	@rawTemplate(value = "ManagedObject*")
+	public native Reference getPointerRef();
+}

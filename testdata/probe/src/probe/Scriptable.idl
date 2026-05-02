@@ -1,0 +1,44 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe coverage for `@lua` annotation. Generates a `LuaScriptable`
+// wrapper class INSIDE the same autogen `Scriptable.h`/`.cpp` (NOT a
+// separate file — the wrapper is appended after the Helper class in
+// the header and after Helper definitions in the source). Used by
+// hand-written `Luna<LuaScriptable>::Register(L)` calls to expose the
+// class to the embedded Lua interpreter.
+//
+// Methods exercised:
+//   isReady() — boolean return, no params (no Locker)
+//   getCount() — int return, no params (no Locker)
+//   setCount(int n) — void return, primitive param (Locker emitted)
+//   setName(final string s) — void + final string (`const String`,
+//                              Locker emitted)
+//   addObject(ManagedObject obj) — void + class param (no Locker:
+//                                   class param breaks the all-primitive
+//                                   rule)
+//   getOwner() — class return (NULL-checked lua_pushlightuserdata)
+@lua
+class Scriptable extends ManagedObject {
+	protected int count;
+
+	public boolean isReady() {
+		return true;
+	}
+
+	public int getCount() {
+		return count;
+	}
+
+	public void setCount(int n) {
+		count = n;
+	}
+
+	public void setName(final string s) {
+	}
+
+	public native void addObject(ManagedObject obj);
+
+	public native ManagedObject getOwner();
+}

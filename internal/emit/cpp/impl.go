@@ -33,15 +33,24 @@ func emitImplHeader(w io.Writer, m *sema.Model) {
 
 	fmt.Fprintf(w, "class %s : %s {\n", c.ImplName, bases)
 
+	fieldsLastVis := "private"
+
 	if hasNoFields(c) {
 		// No IDL fields → JAR emits a blank line in lieu of the field
 		// block before the `public:` label.
 		fmt.Fprintln(w)
 	} else {
-		emitImplFields(w, m)
+		fieldsLastVis = emitImplFields(w, m)
 	}
 
-	fmt.Fprintf(w, "public:\n")
+	// Skip the redundant `public:` label when the last field already
+	// transitioned the access label to public. Surfaced by the
+	// StaticField probe (all fields public → no relabel needed before
+	// the constants/ctor block).
+	if fieldsLastVis != "public" {
+		fmt.Fprintf(w, "public:\n")
+	}
+
 	emitConstantDecls(w, c)
 
 	if cc := customCtor(c); cc != nil {
@@ -192,7 +201,7 @@ func emitImplMethodDecls(w io.Writer, m *sema.Model) parser.Visibility {
 // Visibility tracking: the C++ class default is `private`, so we don't
 // emit a `private:` label until we've seen a non-private one. IDL
 // default-visibility members map to C++ private (matching the JAR).
-func emitImplFields(w io.Writer, m *sema.Model) {
+func emitImplFields(w io.Writer, m *sema.Model) string {
 	c := m.Class
 	emittedAny := false
 	currentLabel := "private" // C++ class default
@@ -226,10 +235,21 @@ func emitImplFields(w io.Writer, m *sema.Model) {
 		prefix := ""
 		if f.Static {
 			prefix = "static "
+
+			// The JAR reorders `unsigned <prim>` → `unsigned static <prim>`
+			// for static fields (sibling of the `unsigned static const`
+			// constant-decl quirk in emitConstantDecls). Verified against
+			// the StaticField probe.
+			if signed, ok := unsignedReorder(f.IDLType.Name); ok {
+				fmt.Fprintf(w, "\tunsigned static %s %s;\n\n", signed, f.Name)
+				continue
+			}
 		}
 
 		fmt.Fprintf(w, "\t%s%s %s;\n\n", prefix, sema.CppRenderFieldType(f, m.Registry), f.Name)
 	}
+
+	return currentLabel
 }
 
 // emitConstantDecls writes the in-class declarations for each
@@ -503,20 +523,25 @@ func emitImplSource(w io.Writer, m *sema.Model) {
 		if !hasNoIDLCtor(c) && !hasNativeDefaultCtor(c) {
 			emitImplDefaultCtor(w, m)
 		}
-	} else if cc.Body == nil {
-		// `native` custom ctor: body is hand-written elsewhere; the impl
-		// has no autogen ctor body.
+	} else if cc.Body != nil && !m.Registry.IsNonManagedParent(c.Base) {
+		// Managed-parent class with a non-native custom ctor: emit the
+		// ctor body BEFORE the method bodies. Verified against
+		// TestIDLClass and SuiBoxPage's autogen — both extend a
+		// managed-parent and their custom ctor leads the method bodies.
+		emitImplCustomCtor(w, m, cc)
 	}
+	// `native` custom ctor (cc != nil && cc.Body == nil): body is
+	// hand-written elsewhere; the impl has no autogen ctor body.
 
 	for _, meth := range c.Methods {
 		emitImplMethodBody(w, m, meth)
 	}
 
-	// Non-native custom ctor: the impl ctor body is emitted after method
-	// bodies (this matches the JAR's emit order). The body calls
-	// `_initializeImplementation()` itself so the stub-side skips that
-	// call (see emitStubCtors).
-	if cc := customCtor(c); cc != nil && cc.Body != nil {
+	// Non-managed-parent class with non-native custom ctor: emit AFTER
+	// method bodies (LambdaObserver pattern). The JAR's order differs
+	// based on whether the parent reaches ManagedObject — managed-parent
+	// classes lead with the ctor; non-managed-parent classes trail it.
+	if cc := customCtor(c); cc != nil && cc.Body != nil && m.Registry.IsNonManagedParent(c.Base) {
 		emitImplCustomCtor(w, m, cc)
 	}
 }

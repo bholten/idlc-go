@@ -162,6 +162,16 @@ func emitStubCtors(w io.Writer, m *sema.Model) {
 
 		fmt.Fprintf(w, "\t%s* _implementation = new %s();\n", c.ImplName, c.ImplName)
 		fmt.Fprintf(w, "\t_impl = _implementation;\n")
+
+		// Native default ctor (`public native Class();`): the impl-side
+		// ctor body is hand-written and may not call
+		// `_initializeImplementation()` itself, so the stub injects it
+		// explicitly. Mirrors the native-custom-ctor branch below.
+		// Verified against the NativeCtor probe and Account.
+		if hasNativeDefaultCtor(c) {
+			fmt.Fprintf(w, "\t_implementation->_initializeImplementation();\n")
+		}
+
 		fmt.Fprintf(w, "\t_impl->_setStub(this);\n")
 		fmt.Fprintf(w, "\t_setClassName(\"%s\");\n", c.Name)
 		fmt.Fprintf(w, "}\n\n")
@@ -309,7 +319,18 @@ func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 		// (Reference / ManagedWeakReference), the cast targets the
 		// bare class pointer; implicit conversion happens at the
 		// return site.
-		castType := sema.CppRenderMethodType(m.Return, model.Registry)
+		//
+		// `@rawTemplate(value="X*")` substitutes the opaque template
+		// inner verbatim — `static_cast<Head<X* >[*]>` rather than the
+		// usual class render. Mirrors the return-type render in
+		// returnDeclForMethod.
+		var castType string
+
+		if m.RawTemplate != "" {
+			castType = m.Return.Name + "<" + m.RawTemplate + " >"
+		} else {
+			castType = sema.CppRenderMethodType(m.Return, model.Registry)
+		}
 
 		if m.IsFinal {
 			castType = "const " + castType
