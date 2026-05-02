@@ -29,6 +29,7 @@ func emitSourcePrelude(w io.Writer, m *sema.Model, reg *sema.Registry) {
 	if reg.IsNonManagedParent(m.Class.Base) {
 		return
 	}
+
 	for _, imp := range m.Imports {
 		if importIsForwardDecl(imp, m.Class.Name, m.Class.Base, reg) {
 			fmt.Fprintf(w, "#include \"%s\"\n\n", importToInclude(imp))

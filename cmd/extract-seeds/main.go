@@ -12,7 +12,8 @@
 //  5. Emit the legacy-seed-map key: "<pkg>.<Class>.<methodName>(<types>)": <seed>,
 //
 // Run from the idlc-go repo root:
-//   go run ./cmd/extract-seeds
+//
+//	go run ./cmd/extract-seeds
 package main
 
 import (
@@ -37,11 +38,13 @@ type entry struct {
 
 func main() {
 	repoRoot, err := os.Getwd()
+
 	if err != nil {
 		fatal(err)
 	}
 
 	core3 := os.Getenv("CORE3_PATH")
+
 	if core3 == "" {
 		core3 = filepath.Join(repoRoot, "submodules", "Core3")
 	}
@@ -61,22 +64,28 @@ func main() {
 		}
 
 		seed, ok := readSeed(p)
+
 		if !ok {
 			return nil
 		}
 
 		// Locate the IDL: _baseline/jar/<tree>/<pkg>/<Class>.cpp.
 		rel, err := filepath.Rel(baseline, p)
+
 		if err != nil {
 			return nil
 		}
+
 		parts := strings.SplitN(rel, string(filepath.Separator), 2)
+
 		if len(parts) != 2 {
 			return nil
 		}
+
 		tree, restRel := parts[0], parts[1]
 
 		var srcRoot string
+
 		switch tree {
 		case "core3":
 			srcRoot = core3Src
@@ -88,14 +97,17 @@ func main() {
 
 		idlPath := filepath.Join(srcRoot, strings.TrimSuffix(restRel, ".cpp")+".idl")
 		key, err := makeKey(idlPath)
+
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  skip %s: %v\n", restRel, err)
 			return nil
 		}
 
 		entries = append(entries, entry{key: key, seed: seed})
+
 		return nil
 	})
+
 	if err != nil {
 		fatal(err)
 	}
@@ -105,6 +117,7 @@ func main() {
 	for _, e := range entries {
 		fmt.Printf("\t%q: %s,\n", e.key, e.seed)
 	}
+
 	fmt.Fprintf(os.Stderr, "[extract-seeds] %d entries\n", len(entries))
 }
 
@@ -113,24 +126,32 @@ func main() {
 // has no seed (auto-numbering enum, e.g. `enum {RPC_X__,};`).
 func readSeed(path string) (string, bool) {
 	f, err := os.Open(path)
+
 	if err != nil {
 		return "", false
 	}
+
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
+
 	for scanner.Scan() {
 		line := scanner.Text()
+
 		if !strings.HasPrefix(line, "enum {RPC_") {
 			continue
 		}
+
 		m := enumRe.FindStringSubmatch(line)
+
 		if m == nil {
 			return "", false
 		}
+
 		return m[1], true
 	}
+
 	return "", false
 }
 
@@ -138,14 +159,19 @@ func readSeed(path string) (string, bool) {
 // matches `LookupSeed`'s lookup form: "<pkg>.<Class>.<method>(<types>)".
 func makeKey(idlPath string) (string, error) {
 	src, err := os.ReadFile(idlPath)
+
 	if err != nil {
 		return "", err
 	}
+
 	f, err := parser.Parse(idlPath, src)
+
 	if err != nil {
 		return "", err
 	}
+
 	m, err := sema.Resolve(f)
+
 	if err != nil {
 		return "", err
 	}
@@ -156,17 +182,22 @@ func makeKey(idlPath string) (string, error) {
 		if meth.IsLocal {
 			continue
 		}
+
 		if !(meth.Visibility == "" || meth.Visibility == "public") {
 			continue
 		}
+
 		var types []string
+
 		for _, p := range meth.Params {
 			types = append(types, p.IDLType.Name)
 		}
+
 		return fmt.Sprintf("%s.%s.%s(%s)",
 			strings.Join(m.Package, "."), m.Class.Name, meth.Name,
 			strings.Join(types, ",")), nil
 	}
+
 	return "", fmt.Errorf("no enum-participating method")
 }
 

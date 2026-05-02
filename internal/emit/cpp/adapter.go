@@ -76,6 +76,7 @@ func emitAdapterInvokeMethod(w io.Writer, m *sema.Model) {
 		if meth.IsLocal || !methodVisibleOnStub(meth) {
 			continue
 		}
+
 		emitAdapterCase(w, meth, m.Registry)
 	}
 
@@ -157,6 +158,7 @@ func emitAdapterCaseParam(w io.Writer, p sema.Param, reg *sema.Registry) {
 	// every param shape (primitive / class / generic / @dereferenced /
 	// non-final string).
 	leadingSpace := ""
+
 	if p.Final {
 		leadingSpace = " "
 	}
@@ -169,6 +171,7 @@ func emitAdapterCaseParam(w io.Writer, p sema.Param, reg *sema.Registry) {
 		castType := sema.CppRender(parser.Type{Name: p.IDLType.Name})
 		fmt.Fprintf(w, "\t\t\t%s%s* %s = static_cast<%s*>(inv->getObjectParameter());\n",
 			leadingSpace, varType, p.Name, castType)
+
 		return
 	}
 
@@ -179,6 +182,7 @@ func emitAdapterCaseParam(w io.Writer, p sema.Param, reg *sema.Registry) {
 		typ := sema.CppRenderMethodType(p.IDLType, reg)
 		fmt.Fprintf(w, "\t\t\t%s%s %s = inv->getDereferencedSerializableParameter<%s >();\n",
 			leadingSpace, typ, p.Name, typ)
+
 		return
 	}
 
@@ -190,6 +194,7 @@ func emitAdapterCaseParam(w io.Writer, p sema.Param, reg *sema.Registry) {
 		typ := sema.CppRender(p.IDLType)
 		fmt.Fprintf(w, "\t\t\t%s%s %s; inv->get%sParameter(%s);\n",
 			leadingSpace, typ, p.Name, mangle, p.Name)
+
 		return
 	}
 
@@ -197,6 +202,7 @@ func emitAdapterCaseParam(w io.Writer, p sema.Param, reg *sema.Registry) {
 		// Byval primitives: `Type x = inv->getXParameter();`
 		typ := sema.CppRender(p.IDLType)
 		fmt.Fprintf(w, "\t\t\t%s%s %s = inv->get%sParameter();\n", leadingSpace, typ, p.Name, mangle)
+
 		return
 	}
 

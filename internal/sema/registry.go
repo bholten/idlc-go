@@ -78,6 +78,7 @@ func (r *Registry) IsIDLClass(qname string) bool {
 	if r == nil {
 		return false
 	}
+
 	return r.idlClasses[qname]
 }
 
@@ -85,9 +86,9 @@ func (r *Registry) IsIDLClass(qname string) bool {
 type classKind int
 
 const (
-	classUnknown   classKind = iota // not a known IDL class — render as Reference<>/T*
-	idlManaged                      // managed-object IDL class — render as ManagedReference<>
-	idlNoPOD                        // IDL class without POD generation (forward-decl only, no XPOD)
+	classUnknown classKind = iota // not a known IDL class — render as Reference<>/T*
+	idlManaged                    // managed-object IDL class — render as ManagedReference<>
+	idlNoPOD                      // IDL class without POD generation (forward-decl only, no XPOD)
 )
 
 // classifies looks up a name (unqualified or qualified) and returns
@@ -117,6 +118,7 @@ func (r *Registry) classifies(name string) classKind {
 	if r.idlNoPOD[name] {
 		return idlNoPOD
 	}
+
 	if r.idlClasses[name] {
 		return idlManaged
 	}
@@ -125,23 +127,29 @@ func (r *Registry) classifies(name string) classKind {
 	// have qnames ending in `.<name>`.
 	hasManaged := false
 	hasNoPOD := false
+
 	for q := range r.idlClasses {
 		i := strings.LastIndex(q, ".")
+
 		if i < 0 || q[i+1:] != name {
 			continue
 		}
+
 		if r.idlNoPOD[q] {
 			hasNoPOD = true
 		} else {
 			hasManaged = true
 		}
 	}
+
 	if hasManaged {
 		return idlManaged
 	}
+
 	if hasNoPOD {
 		return idlNoPOD
 	}
+
 	return classUnknown
 }
 
@@ -168,21 +176,21 @@ func (r *Registry) IsNoPODShortName(name string) bool {
 // else loaded from `LoadExternalHeadersFromDir` is treated as
 // pointer-wrappable (e.g. `engine.core.Task` → `Task* task = ...;`).
 var engine3ValueTypes = map[string]bool{
-	"String":         true,
-	"UnicodeString":  true,
-	"Time":           true,
-	"Vector3":        true,
-	"Quaternion":     true,
-	"Matrix4":        true,
-	"AABB":           true,
-	"Coordinate":     true,
-	"StringId":       true,
-	"Mutex":          true,
-	"ReadWriteLock":  true,
-	"AtomicInteger":  true,
-	"AtomicBoolean":  true,
-	"AtomicLong":     true,
-	"Logger":         true,
+	"String":        true,
+	"UnicodeString": true,
+	"Time":          true,
+	"Vector3":       true,
+	"Quaternion":    true,
+	"Matrix4":       true,
+	"AABB":          true,
+	"Coordinate":    true,
+	"StringId":      true,
+	"Mutex":         true,
+	"ReadWriteLock": true,
+	"AtomicInteger": true,
+	"AtomicBoolean": true,
+	"AtomicLong":    true,
+	"Logger":        true,
 }
 
 // IsEngine3ValueType reports whether the given unqualified class name
@@ -199,11 +207,13 @@ func (r *Registry) IsExternalHeaderShortName(name string) bool {
 	if r == nil || engine3ValueTypes[name] {
 		return false
 	}
+
 	for q := range r.externalHeaders {
 		if i := strings.LastIndex(q, "."); i >= 0 && q[i+1:] == name {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -213,6 +223,7 @@ func (r *Registry) AddNoPOD(qname string) {
 	if r.idlNoPOD == nil {
 		r.idlNoPOD = map[string]bool{}
 	}
+
 	r.idlNoPOD[qname] = true
 	r.idlClasses[qname] = true
 }
@@ -223,6 +234,7 @@ func (r *Registry) IsNoPOD(qname string) bool {
 	if r == nil {
 		return false
 	}
+
 	return r.idlNoPOD[qname]
 }
 
@@ -235,6 +247,7 @@ func (r *Registry) AddNonManagedParent(name string) {
 	if r.nonManagedParents == nil {
 		r.nonManagedParents = map[string]bool{}
 	}
+
 	r.nonManagedParents[name] = true
 }
 
@@ -246,14 +259,17 @@ func (r *Registry) IsNonManagedParent(name string) bool {
 	if r == nil || name == "" {
 		return false
 	}
+
 	if r.nonManagedParents[name] {
 		return true
 	}
+
 	for q := range r.nonManagedParents {
 		if i := strings.LastIndex(q, "."); i >= 0 && q[i+1:] == name {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -266,28 +282,37 @@ func (r *Registry) LoadFromDir(dir string) error {
 	if r.classMeta == nil {
 		r.classMeta = map[string]ClassMeta{}
 	}
+
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			return nil
 		}
+
 		if !strings.HasSuffix(path, ".idl") {
 			return nil
 		}
+
 		src, err := os.ReadFile(path)
+
 		if err != nil {
 			return nil
 		}
+
 		f, err := parser.New(lexer.New(path, src)).ParseFile()
+
 		if err != nil || f == nil || f.Class == nil {
 			return nil
 		}
+
 		qname := f.Package + "." + f.Class.Name
 		r.idlClasses[qname] = true
 
 		meta := ClassMeta{Parent: f.Class.Base}
+
 		for _, mem := range f.Class.Members {
 			switch v := mem.(type) {
 			case *parser.Method:
@@ -303,7 +328,9 @@ func (r *Registry) LoadFromDir(dir string) error {
 				})
 			}
 		}
+
 		r.classMeta[f.Class.Name] = meta
+
 		return nil
 	})
 }
@@ -321,21 +348,28 @@ func (r *Registry) IsAncestor(startClass, candidate string) bool {
 	if r == nil || startClass == "" || candidate == "" {
 		return false
 	}
+
 	visited := map[string]bool{}
+
 	for cur := startClass; cur != ""; {
 		if cur == candidate {
 			return true
 		}
+
 		if visited[cur] {
 			return false
 		}
+
 		visited[cur] = true
 		meta, ok := r.classMeta[cur]
+
 		if !ok {
 			return false
 		}
+
 		cur = meta.Parent
 	}
+
 	return false
 }
 
@@ -350,23 +384,30 @@ func (r *Registry) LookupInheritedField(startClass, name string) (ClassMetaField
 	if r == nil {
 		return ClassMetaField{}, false
 	}
+
 	visited := map[string]bool{}
+
 	for cur := startClass; cur != ""; {
 		if visited[cur] {
 			return ClassMetaField{}, false
 		}
+
 		visited[cur] = true
 		meta, ok := r.classMeta[cur]
+
 		if !ok {
 			return ClassMetaField{}, false
 		}
+
 		for _, fld := range meta.Fields {
 			if fld.Name == name {
 				return fld, true
 			}
 		}
+
 		cur = meta.Parent
 	}
+
 	return ClassMetaField{}, false
 }
 
@@ -384,21 +425,28 @@ func (r *Registry) HasTransitiveFinalize(name string) bool {
 	if r == nil {
 		return false
 	}
+
 	visited := map[string]bool{}
+
 	for cur := name; cur != ""; {
 		if visited[cur] {
 			return false
 		}
+
 		visited[cur] = true
 		meta, ok := r.classMeta[cur]
+
 		if !ok {
 			return false
 		}
+
 		if meta.DeclaresFinalize {
 			return true
 		}
+
 		cur = meta.Parent
 	}
+
 	return false
 }
 
@@ -417,28 +465,38 @@ func (r *Registry) LoadExternalHeadersFromDir(dir string) error {
 	if r.externalHeaders == nil {
 		r.externalHeaders = map[string]bool{}
 	}
+
 	return filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			if d.Name() == "autogen" {
 				return filepath.SkipDir
 			}
+
 			return nil
 		}
+
 		if !strings.HasSuffix(p, ".h") {
 			return nil
 		}
+
 		rel, err := filepath.Rel(dir, p)
+
 		if err != nil {
 			return nil
 		}
+
 		qname := strings.ReplaceAll(strings.TrimSuffix(rel, ".h"), "/", ".")
+
 		if r.IsIDLClass(qname) {
 			return nil
 		}
+
 		r.externalHeaders[qname] = true
+
 		return nil
 	})
 }
@@ -453,25 +511,33 @@ func (r *Registry) AllKnownShortNames() []string {
 	if r == nil {
 		return nil
 	}
+
 	seen := map[string]bool{}
+
 	collect := func(q string) {
 		i := strings.LastIndex(q, ".")
+
 		if i >= 0 {
 			seen[q[i+1:]] = true
 		} else {
 			seen[q] = true
 		}
 	}
+
 	for q := range r.idlClasses {
 		collect(q)
 	}
+
 	for q := range r.externalHeaders {
 		collect(q)
 	}
+
 	out := make([]string, 0, len(seen))
+
 	for n := range seen {
 		out = append(out, n)
 	}
+
 	return out
 }
 
@@ -489,21 +555,27 @@ func (r *Registry) LoadHeadersFromDir(dir string) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			// Skip autogen output trees so we don't register generated
 			// headers as if they were primary class definitions.
 			if d.Name() == "autogen" {
 				return filepath.SkipDir
 			}
+
 			return nil
 		}
+
 		if !strings.HasSuffix(p, ".h") {
 			return nil
 		}
+
 		rel, err := filepath.Rel(dir, p)
+
 		if err != nil {
 			return nil
 		}
+
 		qname := strings.ReplaceAll(strings.TrimSuffix(rel, ".h"), "/", ".")
 
 		// Skip if already registered (e.g. as a managed IDL class
@@ -511,7 +583,9 @@ func (r *Registry) LoadHeadersFromDir(dir string) error {
 		if r.IsIDLClass(qname) {
 			return nil
 		}
+
 		r.AddNoPOD(qname)
+
 		return nil
 	})
 }

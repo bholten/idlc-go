@@ -13,9 +13,11 @@ func emitPODHeader(w io.Writer, m *sema.Model) {
 	emitDocComment(w, c.Doc)
 	fmt.Fprintf(w, "class %s : public %s {\n", c.POD, c.PODBase())
 	fmt.Fprintf(w, "public:\n")
+
 	for _, f := range serializableFields(c) {
 		fmt.Fprintf(w, "\tOptional<%s> %s;\n\n", sema.CppRenderPODFieldType(f, m.Registry), f.Name)
 	}
+
 	if hasNoFields(c) {
 		// No-fields POD: JAR emits a blank line in lieu of the
 		// `String _className;` field that fielded PODs carry.
@@ -23,10 +25,13 @@ func emitPODHeader(w io.Writer, m *sema.Model) {
 	} else {
 		fmt.Fprintf(w, "\tString _className;\n")
 	}
+
 	fmt.Fprintf(w, "\t%s();\n", c.POD)
+
 	if c.HasJSON {
 		fmt.Fprintf(w, "\tvirtual void writeJSON(nlohmann::json& j);\n")
 	}
+
 	fmt.Fprintf(w, "\tvirtual void readObject(ObjectInputStream* stream);\n")
 	fmt.Fprintf(w, "\tvirtual void writeObject(ObjectOutputStream* stream);\n")
 	fmt.Fprintf(w, "\tbool readObjectMember(ObjectInputStream* stream, const uint32& nameHashCode);\n")
@@ -56,8 +61,8 @@ func emitPODSource(w io.Writer, m *sema.Model) {
 	if hasIDLFinalize(c) || (m.Registry != nil && m.Registry.HasTransitiveFinalize(c.Name)) {
 		fmt.Fprintf(w, "\tfinalize();\n")
 	}
-	fmt.Fprintf(w, "}\n\n")
 
+	fmt.Fprintf(w, "}\n\n")
 	fmt.Fprintf(w, "%s::%s(void) {\n", c.POD, c.POD)
 	fmt.Fprintf(w, "\t_className = \"%s\";\n", c.Name)
 	fmt.Fprintf(w, "}\n\n\n")
@@ -83,14 +88,17 @@ func emitPODSource(w io.Writer, m *sema.Model) {
 func emitPODWriteObjectMembers(w io.Writer, m *sema.Model) {
 	c := m.Class
 	fmt.Fprintf(w, "int %s::writeObjectMembers(ObjectOutputStream* stream) {\n", c.POD)
+
 	if c.IsRoot() {
 		fmt.Fprintf(w, "\tint _count = 0;\n")
 	} else {
 		fmt.Fprintf(w, "\tint _count = %s::writeObjectMembers(stream);\n\n", c.PODBase())
 	}
+
 	fmt.Fprintf(w, "\tuint32 _nameHashCode;\n")
 	fmt.Fprintf(w, "\tint _offset;\n")
 	fmt.Fprintf(w, "\tuint32 _totalSize;\n")
+
 	for _, f := range serializableFields(c) {
 		fmt.Fprintf(w, "\tif (%s) {\n", f.Name)
 		fmt.Fprintf(w, "\t_nameHashCode = 0x%x; //%s\n", f.Hash, f.HashInput)
@@ -103,6 +111,7 @@ func emitPODWriteObjectMembers(w io.Writer, m *sema.Model) {
 		fmt.Fprintf(w, "\t_count++;\n")
 		fmt.Fprintf(w, "\t}\n\n")
 	}
+
 	if c.IsRoot() {
 		fmt.Fprintf(w, "\n\t_nameHashCode = 0x%x;//%s\n", classNameFieldHash, classNameFieldHashInput)
 		fmt.Fprintf(w, "\tTypeInfo<uint32>::toBinaryStream(&_nameHashCode, stream);\n")
@@ -115,12 +124,15 @@ func emitPODWriteObjectMembers(w io.Writer, m *sema.Model) {
 	} else {
 		fmt.Fprintf(w, "\n\treturn _count;\n")
 	}
+
 	fmt.Fprintf(w, "}\n\n")
 }
 
 func emitPODReadObjectMember(w io.Writer, m *sema.Model) {
 	c := m.Class
+
 	fmt.Fprintf(w, "bool %s::readObjectMember(ObjectInputStream* stream, const uint32& nameHashCode) {\n", c.POD)
+
 	if c.IsRoot() {
 		fmt.Fprintf(w, "\tif (nameHashCode == 0x%x) {//%s \n", classNameFieldHash, classNameFieldHashInput)
 		fmt.Fprintf(w, "\t\tTypeInfo<String>::parseFromBinaryStream(&_className, stream);\n")
@@ -130,7 +142,9 @@ func emitPODReadObjectMember(w io.Writer, m *sema.Model) {
 		fmt.Fprintf(w, "\tif (%s::readObjectMember(stream, nameHashCode))\n", c.PODBase())
 		fmt.Fprintf(w, "\t\treturn true;\n\n")
 	}
+
 	fmt.Fprintf(w, "\tswitch(nameHashCode) {\n")
+
 	for _, f := range serializableFields(c) {
 		typ := sema.CppRenderPODFieldType(f, m.Registry)
 		fmt.Fprintf(w, "\tcase 0x%x: //%s\n", f.Hash, f.HashInput)
@@ -141,6 +155,7 @@ func emitPODReadObjectMember(w io.Writer, m *sema.Model) {
 		fmt.Fprintf(w, "\t\t}\n")
 		fmt.Fprintf(w, "\t\treturn true;\n\n")
 	}
+
 	fmt.Fprintf(w, "\t}\n\n")
 	fmt.Fprintf(w, "\treturn false;\n")
 	fmt.Fprintf(w, "}\n\n")
@@ -164,11 +179,14 @@ func emitPODReadObject(w io.Writer, c sema.Class) {
 func emitPODWriteObjectCompact(w io.Writer, m *sema.Model) {
 	c := m.Class
 	fmt.Fprintf(w, "void %s::writeObjectCompact(ObjectOutputStream* stream) {\n", c.POD)
+
 	if !c.IsRoot() {
 		fmt.Fprintf(w, "\t%s::writeObjectCompact(stream);\n\n", c.PODBase())
 	}
+
 	for _, f := range serializableFields(c) {
 		fmt.Fprintf(w, "\tTypeInfo<%s >::toBinaryStream(&%s.value(), stream);\n\n", sema.CppRenderPODFieldType(f, m.Registry), f.Name)
 	}
+
 	fmt.Fprintf(w, "\n}\n\n")
 }

@@ -8,6 +8,7 @@ func hasAnnotation(anns []parser.Annotation, name string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -21,8 +22,10 @@ func annotationArg(anns []parser.Annotation, name, key string) string {
 			if a.Args == nil {
 				return ""
 			}
+
 			return a.Args[key]
 		}
 	}
+
 	return ""
 }

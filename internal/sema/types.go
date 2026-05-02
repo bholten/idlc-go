@@ -31,11 +31,12 @@ var idlToCpp = map[string]string{
 // any generics (recursively type-mapped).
 //
 // Examples:
-//   string                 → String
-//   unsigned long          → unsigned long long
-//   Vector<unsigned long>  → Vector<unsigned long long>
-//   VectorMap<string, int> → VectorMap<String, int>
-//   ChatRoom               → ChatRoom
+//
+//	string                 → String
+//	unsigned long          → unsigned long long
+//	Vector<unsigned long>  → Vector<unsigned long long>
+//	VectorMap<string, int> → VectorMap<String, int>
+//	ChatRoom               → ChatRoom
 func CppRender(t parser.Type) string {
 	head := cppHead(t.Name)
 	if t.Generics == "" {
@@ -68,22 +69,22 @@ func CppRenderMethodType(t parser.Type, reg *Registry) string {
 // CppRenderFieldType renders a field's C++ type, applying the JAR's
 // class-wrap rules:
 //
-//	* a non-generic IDL-managed class becomes `ManagedReference<T* >`
-//	  (or `ManagedWeakReference<T* >` for `@weakReference`),
-//	* a non-generic non-IDL class becomes `Reference<T* >`,
-//	* a generic-typed field, when NOT `@dereferenced`, gets an outer
-//	  wrap: `ManagedReference<Head<args>* >` if HEAD is IDL-managed,
-//	  `Reference<Head<args>* >` otherwise (Vector / VectorMap),
-//	* a generic-typed field WITH `@dereferenced` renders bare
-//	  `Head<args>` (matches PendingMessageList's `pendingMessages`,
-//	  ChatManager's `gameRooms`),
-//	* class-typed args inside generic containers always apply the
-//	  IDL-vs-non-IDL split (`ManagedReference<T* >` vs bare `T*`),
-//	* `@dereferenced` of an IDL-managed *non-generic* class wraps as
-//	  `ManagedReference<T >` (no `*` inside) — `@weakReference` switches
-//	  the wrap to `ManagedWeakReference<T >`,
-//	* `@dereferenced` of a non-IDL non-generic class renders bare
-//	  (TreeEntry's `Coordinate`/`Logger` precedent).
+//   - a non-generic IDL-managed class becomes `ManagedReference<T* >`
+//     (or `ManagedWeakReference<T* >` for `@weakReference`),
+//   - a non-generic non-IDL class becomes `Reference<T* >`,
+//   - a generic-typed field, when NOT `@dereferenced`, gets an outer
+//     wrap: `ManagedReference<Head<args>* >` if HEAD is IDL-managed,
+//     `Reference<Head<args>* >` otherwise (Vector / VectorMap),
+//   - a generic-typed field WITH `@dereferenced` renders bare
+//     `Head<args>` (matches PendingMessageList's `pendingMessages`,
+//     ChatManager's `gameRooms`),
+//   - class-typed args inside generic containers always apply the
+//     IDL-vs-non-IDL split (`ManagedReference<T* >` vs bare `T*`),
+//   - `@dereferenced` of an IDL-managed *non-generic* class wraps as
+//     `ManagedReference<T >` (no `*` inside) — `@weakReference` switches
+//     the wrap to `ManagedWeakReference<T >`,
+//   - `@dereferenced` of a non-IDL non-generic class renders bare
+//     (TreeEntry's `Coordinate`/`Logger` precedent).
 //
 // IsPrimitive types and primitives-only generics render plain.
 func CppRenderFieldType(f Field, reg *Registry) string {
@@ -93,8 +94,10 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 	if f.RawTemplate != "" {
 		return f.IDLType.Name + "<" + f.RawTemplate + " >"
 	}
+
 	if f.IDLType.Generics != "" {
 		rendered := renderGenericInners(f.IDLType, reg)
+
 		if f.Dereferenced {
 			return rendered
 		}
@@ -103,36 +106,46 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 		// ManagedReference<>, ...). In that case the inner is already
 		// pointer-like and an extra `*` would over-indirect.
 		ptr := "* "
+
 		if isSmartPointerWrapper(cppHead(f.IDLType.Name)) {
 			ptr = " "
 		}
+
 		if reg.classifies(f.IDLType.Name) == idlManaged {
 			if f.WeakRef {
 				return "ManagedWeakReference<" + rendered + ptr + ">"
 			}
+
 			return "ManagedReference<" + rendered + ptr + ">"
 		}
+
 		if f.WeakRef {
 			return "WeakReference<" + rendered + ptr + ">"
 		}
+
 		return "Reference<" + rendered + ptr + ">"
 	}
+
 	if IsPrimitive(f.IDLType.Name) {
 		return CppRender(f.IDLType)
 	}
 	idlManagedHead := reg.classifies(f.IDLType.Name) == idlManaged
 	head := cppHead(f.IDLType.Name)
+
 	if f.Dereferenced {
 		// @dereferenced + IDL-managed: `ManagedReference<T >` (no `*`).
 		// @dereferenced + non-IDL: bare T (TreeEntry's `Coordinate`).
 		if !idlManagedHead {
 			return head
 		}
+
 		if f.WeakRef {
 			return "ManagedWeakReference<" + head + " >"
 		}
+
 		return "ManagedReference<" + head + " >"
 	}
+
 	if f.WeakRef {
 		// `@weakReference` on a managed-object class wraps as
 		// `ManagedWeakReference<X*>`; on a non-managed (engine3 header)
@@ -142,17 +155,21 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 		if idlManagedHead {
 			return "ManagedWeakReference<" + head + "* >"
 		}
+
 		return "WeakReference<" + head + "* >"
 	}
+
 	if idlManagedHead {
 		return "ManagedReference<" + head + "* >"
 	}
 	// `final` on a non-managed class field renders the inner as
 	// `const X*` so the wrapper enforces "no reassignment after
 	// construction" — matches the IDL's `final` semantics.
+
 	if f.Final {
 		return "Reference<const " + head + "* >"
 	}
+
 	return "Reference<" + head + "* >"
 }
 
@@ -175,16 +192,20 @@ func renderGenericInners(t parser.Type, reg *Registry) string {
 	head := cppHead(t.Name)
 	smartPtr := isSmartPointerWrapper(head)
 	args := splitGenericArgs(t.Generics)
+
 	for i, a := range args {
 		args[i] = renderGenericArg(a, reg, smartPtr)
 	}
+
 	joined := strings.Join(args, ", ")
+
 	if strings.HasSuffix(joined, ">") {
 		// Avoid `>>` by inserting a separating space (matches JAR /
 		// pre-C++14 template-parse convention). Also covers chains like
 		// `> >` from a previously-rendered nested generic.
 		return head + "<" + joined + " >"
 	}
+
 	return head + "<" + joined + ">"
 }
 
@@ -201,9 +222,11 @@ func renderGenericInners(t parser.Type, reg *Registry) string {
 //   - `Vector<Reference<X>>`           → `Vector<Reference<X*>>`               (recurse, no outer wrap on the arg)
 func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 	a = strings.TrimSpace(a)
+
 	if IsPrimitive(a) {
 		return cppHead(a)
 	}
+
 	if open := strings.Index(a, "<"); open >= 0 && strings.HasSuffix(a, ">") {
 		innerName := a[:open]
 		inner := a[open+1 : len(a)-1]
@@ -222,6 +245,7 @@ func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		}
 		return rendered
 	}
+
 	if smartPtrOuter {
 		// Inside Reference<>/ManagedReference<>: managed leaf wraps as
 		// `ManagedReference<X*>` (NOT bare `X*` — the JAR insists on the
@@ -230,8 +254,10 @@ func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		if reg.classifies(a) == idlManaged {
 			return "ManagedReference<" + cppHead(a) + "* >"
 		}
+
 		return cppHead(a) + "*"
 	}
+
 	// Container outer (Vector / VectorMap / SortedVector / etc.) with a
 	// flat class arg: managed leaf gets the `ManagedReference<X*>` wrap
 	// (so the container holds a managed reference); non-managed leaf is
@@ -241,6 +267,7 @@ func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 	if reg.classifies(a) == idlManaged {
 		return "ManagedReference<" + cppHead(a) + "* >"
 	}
+
 	return cppHead(a) + "*"
 }
 
@@ -271,6 +298,7 @@ func splitGenericArgs(s string) []string {
 	var out []string
 	depth := 0
 	start := 0
+
 	for i, ch := range s {
 		switch ch {
 		case '<':
@@ -284,9 +312,11 @@ func splitGenericArgs(s string) []string {
 			}
 		}
 	}
+
 	if start < len(s) {
 		out = append(out, strings.TrimSpace(s[start:]))
 	}
+
 	return out
 }
 
@@ -313,51 +343,68 @@ func CppRenderPODFieldType(f Field, reg *Registry) string {
 	if f.RawTemplate != "" {
 		return f.IDLType.Name + "<" + f.RawTemplate + " >"
 	}
+
 	if f.IDLType.Generics != "" {
 		rendered := renderPODGenericInners(f.IDLType, reg)
+
 		if f.Dereferenced {
 			return rendered
 		}
+
 		ptr := "* "
 		podSuffix := "POD"
+
 		if isSmartPointerWrapper(cppHead(f.IDLType.Name)) {
 			ptr = " "
 			podSuffix = ""
 		}
+
 		if reg.classifies(f.IDLType.Name) == idlManaged {
 			if f.WeakRef {
 				return "ManagedWeakReference<" + rendered + podSuffix + ptr + ">"
 			}
+
 			return "ManagedReference<" + rendered + podSuffix + ptr + ">"
 		}
+
 		if f.WeakRef {
 			return "WeakReference<" + rendered + ptr + ">"
 		}
+
 		return "Reference<" + rendered + ptr + ">"
 	}
+
 	if IsPrimitive(f.IDLType.Name) {
 		return CppRender(f.IDLType)
 	}
+
 	idlManagedHead := reg.classifies(f.IDLType.Name) == idlManaged
 	head := cppHead(f.IDLType.Name)
+
 	if f.Dereferenced {
 		if !idlManagedHead {
 			return head
 		}
+
 		if f.WeakRef {
 			return "ManagedWeakReference<" + head + " >"
 		}
+
 		return "ManagedReference<" + head + " >"
 	}
+
 	if idlManagedHead {
 		if f.WeakRef {
 			return "ManagedWeakReference<" + head + "POD* >"
 		}
+
 		return "ManagedReference<" + head + "POD* >"
 	}
+
 	if f.WeakRef {
 		return "WeakReference<" + head + "* >"
 	}
+
 	return "Reference<" + head + "* >"
 }
 
@@ -368,21 +415,27 @@ func renderPODGenericInners(t parser.Type, reg *Registry) string {
 	head := cppHead(t.Name)
 	smartPtr := isSmartPointerWrapper(head)
 	args := splitGenericArgs(t.Generics)
+
 	for i, a := range args {
 		args[i] = renderPODGenericArg(a, reg, smartPtr)
 	}
+
 	joined := strings.Join(args, ", ")
+
 	if strings.HasSuffix(joined, ">") {
 		return head + "<" + joined + " >"
 	}
+
 	return head + "<" + joined + ">"
 }
 
 func renderPODGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 	a = strings.TrimSpace(a)
+
 	if IsPrimitive(a) {
 		return cppHead(a)
 	}
+
 	if open := strings.Index(a, "<"); open >= 0 && strings.HasSuffix(a, ">") {
 		innerName := a[:open]
 		inner := a[open+1 : len(a)-1]
@@ -393,17 +446,21 @@ func renderPODGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		if !isSmartPointerWrapper(cppHead(innerName)) {
 			return rendered + "*"
 		}
+
 		return rendered
 	}
+
 	if smartPtrOuter {
 		if reg.classifies(a) == idlManaged {
 			return "ManagedReference<" + cppHead(a) + "POD* >"
 		}
 		return cppHead(a) + "*"
 	}
+
 	if reg.classifies(a) == idlManaged {
 		return "ManagedReference<" + cppHead(a) + "POD* >"
 	}
+
 	return cppHead(a) + "*"
 }
 
@@ -411,6 +468,7 @@ func cppHead(idlName string) string {
 	if t, ok := idlToCpp[idlName]; ok {
 		return t
 	}
+
 	return lastQNamePart(idlName)
 }
 
@@ -421,9 +479,11 @@ func cppHead(idlName string) string {
 // If/when we see deeper nesting in the wild, this can be tightened.
 func cppRenderGenericArgs(generics string) string {
 	parts := strings.Split(generics, ", ")
+
 	for i, p := range parts {
 		parts[i] = cppHead(strings.TrimSpace(p))
 	}
+
 	return strings.Join(parts, ", ")
 }
 
@@ -454,6 +514,7 @@ func IsPointerReturn(t parser.Type) bool {
 	if t.Generics != "" {
 		return !isSmartPointerWrapper(cppHead(t.Name))
 	}
+
 	return !IsPrimitive(t.Name)
 }
 
@@ -461,5 +522,6 @@ func lastQNamePart(qname string) string {
 	if i := strings.LastIndex(qname, "."); i >= 0 {
 		return qname[i+1:]
 	}
+
 	return qname
 }

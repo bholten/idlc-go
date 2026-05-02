@@ -106,23 +106,29 @@ func emitImplHeader(w io.Writer, m *sema.Model) {
 		// `lock(ManagedObject*)`, both must be omitted to avoid
 		// "class member cannot be redeclared".
 		idlNames := map[string]bool{}
+
 		for _, mm := range c.Methods {
 			idlNames[mm.Name] = true
 		}
+
 		if !idlNames["lock"] {
 			fmt.Fprintf(w, "\tvoid lock(bool doLock = true);\n\n")
 			fmt.Fprintf(w, "\tvoid lock(ManagedObject* obj);\n\n")
 		}
+
 		if !idlNames["rlock"] {
 			fmt.Fprintf(w, "\tvoid rlock(bool doLock = true);\n\n")
 		}
+
 		if !idlNames["wlock"] {
 			fmt.Fprintf(w, "\tvoid wlock(bool doLock = true);\n\n")
 			fmt.Fprintf(w, "\tvoid wlock(ManagedObject* obj);\n\n")
 		}
+
 		if !idlNames["unlock"] {
 			fmt.Fprintf(w, "\tvoid unlock(bool doLock = true);\n\n")
 		}
+
 		if !idlNames["runlock"] {
 			fmt.Fprintf(w, "\tvoid runlock(bool doLock = true);\n\n")
 		}
@@ -211,10 +217,12 @@ func emitImplFields(w io.Writer, m *sema.Model) {
 			if access != "private" || emittedAny {
 				fmt.Fprintf(w, "%s:\n", access)
 			}
+
 			currentLabel = access
 		}
 
 		emittedAny = true
+
 		fmt.Fprintf(w, "\t%s %s;\n\n", sema.CppRenderFieldType(f, m.Registry), f.Name)
 	}
 }
@@ -283,6 +291,7 @@ func constInClass(f sema.Field) bool {
 	case "int", "short":
 		return true
 	}
+
 	return false
 }
 
@@ -423,23 +432,29 @@ func emitImplSource(w io.Writer, m *sema.Model) {
 
 	if !c.IsRoot() {
 		idlNames := map[string]bool{}
+
 		for _, mm := range c.Methods {
 			idlNames[mm.Name] = true
 		}
+
 		if !idlNames["lock"] {
 			emitLockDelegate(w, c, "lock", "bool doLock", "doLock")
 			emitLockDelegate(w, c, "lock", "ManagedObject* obj", "obj")
 		}
+
 		if !idlNames["rlock"] {
 			emitLockDelegate(w, c, "rlock", "bool doLock", "doLock")
 		}
+
 		if !idlNames["wlock"] {
 			emitLockDelegate(w, c, "wlock", "bool doLock", "doLock")
 			emitLockDelegate(w, c, "wlock", "ManagedObject* obj", "obj")
 		}
+
 		if !idlNames["unlock"] {
 			emitLockDelegate(w, c, "unlock", "bool doLock", "doLock")
 		}
+
 		if !idlNames["runlock"] {
 			emitLockDelegate(w, c, "runlock", "bool doLock", "doLock")
 		}
@@ -489,6 +504,7 @@ func emitImplCustomCtor(w io.Writer, m *sema.Model, cc *sema.Ctor) {
 	ctx := makeBodyCtx(m, cc.Params)
 
 	initList := ""
+
 	if hasSuper {
 		initList = " : " + c.ImplBase() + "(" + rewriteBodyLine(superArgs, ctx) + ")"
 	}
@@ -705,13 +721,16 @@ func emitImplDefaultCtor(w io.Writer, m *sema.Model) {
 	ctor := c.Ctors[0]
 
 	rawBody := ""
+
 	if ctor.Body != nil {
 		rawBody = ctor.Body.Raw
 	}
+
 	superArgs, restBody, hasSuper := extractSuperCall(rawBody)
 	ctx := makeBodyCtx(m, ctor.Params)
 
 	initList := ""
+
 	if hasSuper {
 		initList = " : " + c.ImplBase() + "(" + rewriteBodyLine(superArgs, ctx) + ")"
 	}
@@ -828,9 +847,11 @@ func emitBodyWithSourceComments(w io.Writer, m *sema.Model, raw string, ctx body
 		compactedWS := collapseSpaceRuns(leadingWS)
 		fmt.Fprintf(w, "\t// %s():  %s%s\n", m.IDLPath, compactedWS, body)
 		rewritten := rewriteBodyLine(body, ctx)
+
 		if loc, ok := locals[i]; ok {
 			rewritten = rewriteLocalClassDecl(rewritten, loc)
 		}
+
 		fmt.Fprintf(w, "\t%s\n", rewritten)
 	}
 }
@@ -871,6 +892,7 @@ func findClassLocalVars(lines []string, ctx *bodyCtx) map[int]localClassDecl {
 
 	for i, raw := range lines {
 		m := localVarDeclRe.FindStringSubmatch(raw)
+
 		if m == nil {
 			continue
 		}
@@ -879,6 +901,7 @@ func findClassLocalVars(lines []string, ctx *bodyCtx) map[int]localClassDecl {
 		ident := m[4]
 
 		managed := false
+
 		switch {
 		case ctx.registry.IsManagedShortName(typeName):
 			out[i] = localClassDecl{typeName: typeName, ident: ident, managed: true}
@@ -915,6 +938,7 @@ func findClassLocalVars(lines []string, ctx *bodyCtx) map[int]localClassDecl {
 func rewriteLocalClassDecl(line string, d localClassDecl) string {
 	key := "lv:" + d.typeName + ":" + d.ident
 	re, ok := identRewriters[key]
+
 	if !ok {
 		re = regexp.MustCompile(`\b` + regexp.QuoteMeta(d.typeName) + `(\s+)` + regexp.QuoteMeta(d.ident) + `\b`)
 		identRewriters[key] = re
@@ -923,9 +947,9 @@ func rewriteLocalClassDecl(line string, d localClassDecl) string {
 	if d.managed {
 		return re.ReplaceAllString(line, "ManagedReference<"+d.typeName+"* >${1}"+d.ident)
 	}
+
 	return re.ReplaceAllString(line, d.typeName+"*${1}"+d.ident)
 }
-
 
 // ifElseRole tags a body line involved in an if/else-without-braces
 // JAR quirk. The JAR's emit folds an `if (...)` (or `else`) line and
@@ -948,9 +972,9 @@ type ifElseEntry struct {
 }
 
 var (
-	ifNoBraceRe   = regexp.MustCompile(`^\s*if\s*\(.*\)\s*$`)
-	elseOnlyRe    = regexp.MustCompile(`^\s*else\s*$`)
-	ifNoSpaceRe   = regexp.MustCompile(`^if\(`)
+	ifNoBraceRe = regexp.MustCompile(`^\s*if\s*\(.*\)\s*$`)
+	elseOnlyRe  = regexp.MustCompile(`^\s*else\s*$`)
+	ifNoSpaceRe = regexp.MustCompile(`^if\(`)
 )
 
 // normaliseIfSpace ensures a single space between `if` and its `(` —
@@ -1018,6 +1042,7 @@ func findIfElseNoBraces(lines []string) map[int]ifElseEntry {
 func nextNonBlank(lines []string, from int) int {
 	for j := from; j < len(lines); j++ {
 		_, body := splitLeadingWhitespace(strings.TrimRight(lines[j], "\r"))
+
 		if body != "" {
 			return j
 		}
@@ -1090,25 +1115,34 @@ var superCallRe = regexp.MustCompile(`^super\s*\((.*)\)\s*;\s*$`)
 // b);` would be missed. None of the corpus IDLs span lines.
 func extractSuperCall(raw string) (args, rest string, found bool) {
 	lines := strings.Split(raw, "\n")
+
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
 		if trimmed == "" {
 			continue
 		}
+
 		if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
 			// Skip comments — JAR's comment-stripping pass also runs.
 			continue
 		}
+
 		if !strings.HasPrefix(trimmed, "super") {
 			return "", raw, false
 		}
+
 		m := superCallRe.FindStringSubmatch(trimmed)
+
 		if m == nil {
 			return "", raw, false
 		}
+
 		lines[i] = ""
+
 		return strings.TrimSpace(m[1]), strings.Join(lines, "\n"), true
 	}
+
 	return "", raw, false
 }
 
@@ -1135,6 +1169,7 @@ func stripBodyComments(raw string) string {
 			for i < len(raw) && raw[i] != '\n' {
 				i++
 			}
+
 			continue
 		}
 
@@ -1174,6 +1209,7 @@ func stripBodyComments(raw string) string {
 					break
 				}
 			}
+
 			continue
 		}
 
@@ -1192,9 +1228,9 @@ type bodyCtx struct {
 	// these additionally trigger the bare-form `field` → `(&field)` rewrite. Primitive `@dereferenced`
 	// fields (e.g. `string jtlZoneName`) skip the bare-form because the field is already by-value
 	// and no `&`-coerce is needed.
-	weakRefFields   []string       // @weakReference fields in this class — body access uses .get()-> instead of ->
-	classNames      []string       // class-typed identifiers (fields + params + locals) — get .X → ->X
-	smartPtrNames   []string       // subset of classNames stored as Reference<X*>/ManagedReference<X*> — need
+	weakRefFields []string // @weakReference fields in this class — body access uses .get()-> instead of ->
+	classNames    []string // class-typed identifiers (fields + params + locals) — get .X → ->X
+	smartPtrNames []string // subset of classNames stored as Reference<X*>/ManagedReference<X*> — need
 	// `.get()` for `dynamic_cast<>` operand. Includes all non-@dereferenced fields and managed locals;
 	// excludes raw-pointer params and noPOD locals.
 	importedClasses []string       // unqualified imported class names — get .X → ::X
@@ -1212,6 +1248,7 @@ type bodyCtx struct {
 func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 	c := m.Class
 	ctx := bodyCtx{dereferencedFields: c.DereferencedFieldNames, registry: m.Registry}
+
 	if !c.IsRoot() {
 		ctx.superImpl = c.ImplBase()
 		ctx.superClass = c.Base
@@ -1229,6 +1266,7 @@ func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 			if !sema.IsPrimitive(f.IDLType.Name) {
 				ctx.dereferencedClassFields = append(ctx.dereferencedClassFields, f.Name)
 			}
+
 			continue
 		}
 
@@ -1243,6 +1281,7 @@ func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 			// member access. Tracked separately from classNames so the
 			// rewrite doesn't double-fire.
 			ctx.weakRefFields = append(ctx.weakRefFields, f.Name)
+
 			continue
 		}
 
@@ -1267,17 +1306,22 @@ func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 		if p.Dereferenced {
 			continue
 		}
+
 		if p.IDLType.Generics == "" {
 			head := p.IDLType.Name
+
 			if head == "string" || head == "unicode" {
 				// Already filtered by IsPrimitive, but keep symmetry.
 				continue
 			}
+
 			rendered := sema.CppRender(p.IDLType)
+
 			if rendered == "String" || rendered == "UnicodeString" {
 				continue
 			}
 		}
+
 		ctx.classNames = append(ctx.classNames, p.Name)
 	}
 
@@ -1307,9 +1351,11 @@ func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 	// approximate with the registry's known-short-names set.
 	if m.Registry != nil {
 		seen := map[string]bool{}
+
 		for _, n := range ctx.importedClasses {
 			seen[n] = true
 		}
+
 		for _, n := range m.Registry.AllKnownShortNames() {
 			if !seen[n] {
 				ctx.importedClasses = append(ctx.importedClasses, n)
@@ -1421,11 +1467,13 @@ func emitSyncOpener(w io.Writer, idlPath string, s syncEntry, ctx bodyCtx) {
 // `synchronized (this) { ... }` → `_this.getReferenceUnsafeStaticCast()`).
 func rewriteSyncArg(arg string, ctx bodyCtx) string {
 	trimmed := strings.TrimSpace(arg)
+
 	for _, f := range ctx.dereferencedFields {
 		if trimmed == f {
 			return "(&" + f + ")"
 		}
 	}
+
 	return rewriteBodyLine(arg, ctx)
 }
 
@@ -1497,6 +1545,7 @@ func rewriteBodyLine(line string, ctx bodyCtx) string {
 		if c == '"' {
 			b.WriteByte(c)
 			i++
+
 			for i < len(line) {
 				ch := line[i]
 				b.WriteByte(ch)
@@ -1573,12 +1622,15 @@ func rewriteWeakRefFields(line string, fields []string) string {
 	for _, f := range fields {
 		key := "wr:" + f
 		re, ok := identRewriters[key]
+
 		if !ok {
 			re = regexp.MustCompile(`\b` + regexp.QuoteMeta(f) + `\b\.`)
 			identRewriters[key] = re
 		}
+
 		line = re.ReplaceAllString(line, f+".get()->")
 	}
+
 	return line
 }
 
@@ -1619,23 +1671,30 @@ func rewriteCStyleCast(seg string, reg *sema.Registry, smartPtrNames []string) s
 	}
 
 	smartSet := map[string]bool{}
+
 	for _, n := range smartPtrNames {
 		smartSet[n] = true
 	}
 
 	return cStyleCastRe.ReplaceAllStringFunc(seg, func(match string) string {
 		m := cStyleCastRe.FindStringSubmatch(match)
+
 		if m == nil {
 			return match
 		}
+
 		typeName, ident := m[1], m[2]
+
 		if !reg.IsManagedShortName(typeName) && !reg.IsNoPODShortName(typeName) {
 			return match
 		}
+
 		operand := ident
+
 		if smartSet[ident] {
 			operand = ident + ".get()"
 		}
+
 		return "dynamic_cast<" + typeName + "*>(" + operand + ")"
 	})
 }
@@ -1656,12 +1715,15 @@ func rewriteCStyleCast(seg string, reg *sema.Registry, smartPtrNames []string) s
 func rewritePrimitiveTypes(line string) string {
 	for _, rule := range bodyTypeRewrites {
 		re, ok := identRewriters["bt:"+rule.idl]
+
 		if !ok {
 			re = regexp.MustCompile(`\b` + rule.idl + `\b`)
 			identRewriters["bt:"+rule.idl] = re
 		}
+
 		line = re.ReplaceAllString(line, rule.cpp)
 	}
+
 	return line
 }
 
@@ -1711,17 +1773,21 @@ func rewriteSuperDot(line string, ctx bodyCtx) string {
 
 	// First handle `super.<field>.X` (chained access).
 	chainedRe, ok := identRewriters["super-chain"]
+
 	if !ok {
 		chainedRe = regexp.MustCompile(`\bsuper\.([A-Za-z_][A-Za-z0-9_]*)\.`)
 		identRewriters["super-chain"] = chainedRe
 	}
+
 	line = chainedRe.ReplaceAllStringFunc(line, func(match string) string {
 		m := chainedRe.FindStringSubmatch(match)
+
 		if m == nil {
 			return match
 		}
 		fieldName := m[1]
 		fld, found := ctx.registry.LookupInheritedField(ctx.superClass, fieldName)
+
 		switch {
 		case found && fld.WeakRef:
 			return ctx.superImpl + "::" + fieldName + ".getForUpdate().get()->"
@@ -1740,31 +1806,39 @@ func rewriteSuperDot(line string, ctx bodyCtx) string {
 	// Match `\bsuper\.<ident>` NOT followed by `.` or `(` — the latter
 	// avoids clobbering `super.method(args)`, which is handled below.
 	bareRe, ok := identRewriters["super-bare"]
+
 	if !ok {
 		bareRe = regexp.MustCompile(`\bsuper\.([A-Za-z_][A-Za-z0-9_]*)\b(?:[^a-zA-Z0-9_(.]|$)`)
 		identRewriters["super-bare"] = bareRe
 	}
+
 	line = bareRe.ReplaceAllStringFunc(line, func(match string) string {
 		m := bareRe.FindStringSubmatch(match)
+
 		if m == nil {
 			return match
 		}
+
 		fieldName := m[1]
 		// Trailing char (the non-alpha-num that ended the match) — preserve it.
 		trailing := match[len("super.")+len(fieldName):]
 		fld, found := ctx.registry.LookupInheritedField(ctx.superClass, fieldName)
+
 		if found && (fld.WeakRef || ctx.registry.IsManagedShortName(fld.TypeName)) {
 			return ctx.superImpl + "::" + fieldName + ".getForUpdate()" + trailing
 		}
+
 		return ctx.superImpl + "::" + fieldName + trailing
 	})
 
 	// Finally `super.X(args)` (method calls) and any leftover `super.`.
 	re, ok := identRewriters["super:"+ctx.superImpl]
+
 	if !ok {
 		re = regexp.MustCompile(`\bsuper\.`)
 		identRewriters["super:"+ctx.superImpl] = re
 	}
+
 	return re.ReplaceAllString(line, ctx.superImpl+"::")
 }
 
@@ -1826,13 +1900,16 @@ func rewriteDereferenced(line string, allFields, classFields []string) string {
 		}
 
 		isClass := classSet[f]
+
 		line = re.ReplaceAllStringFunc(line, func(match string) string {
 			if strings.HasSuffix(match, ".") {
 				return "(&" + f + ")->"
 			}
+
 			if isClass {
 				return "(&" + f + ")"
 			}
+
 			return match
 		})
 	}

@@ -45,6 +45,7 @@ func (m *Model) HeaderPrefix() string {
 	if m.OutdirPrefix == "" {
 		return "autogen"
 	}
+
 	return m.OutdirPrefix
 }
 
@@ -58,7 +59,7 @@ type Class struct {
 	POD      string
 
 	HasJSON    bool
-	IsMock     bool // @mock annotation — emit gmock.h include + Mock<Class> subclass.
+	IsMock     bool     // @mock annotation — emit gmock.h include + Mock<Class> subclass.
 	Implements []string // unqualified type names from IDL `implements` clause.
 
 	Fields  []Field
@@ -81,6 +82,7 @@ func (c Class) StubBase() string {
 	if c.IsRoot() {
 		return "DistributedObjectStub"
 	}
+
 	return c.Base
 }
 
@@ -89,6 +91,7 @@ func (c Class) ImplBase() string {
 	if c.IsRoot() {
 		return "DistributedObjectServant"
 	}
+
 	return c.Base + "Implementation"
 }
 
@@ -97,6 +100,7 @@ func (c Class) AdapterBase() string {
 	if c.IsRoot() {
 		return "DistributedObjectAdapter"
 	}
+
 	return c.Base + "Adapter"
 }
 
@@ -105,6 +109,7 @@ func (c Class) PODBase() string {
 	if c.IsRoot() {
 		return "DistributedObjectPOD"
 	}
+
 	return c.Base + "POD"
 }
 
@@ -155,9 +160,9 @@ type Method struct {
 	IsNativeStub                  bool
 	IsVirtualStub                 bool
 	IsNoImplementationDeclaration bool
-	IsReference                   bool // @reference — wraps return as Reference<T*>.
-	IsWeakReference               bool // @weakReference — wraps return as ManagedWeakReference<T*>.
-	IsDereferenced                bool // @dereferenced — return is by-value (no trailing `*`).
+	IsReference                   bool   // @reference — wraps return as Reference<T*>.
+	IsWeakReference               bool   // @weakReference — wraps return as ManagedWeakReference<T*>.
+	IsDereferenced                bool   // @dereferenced — return is by-value (no trailing `*`).
 	IsMock                        bool   // @mock on a method — adds `virtual ` to the impl-class header decl so the gmock subclass can override.
 	RawTemplate                   string // @rawTemplate(value="...") on a method — return type pastes inner: `Head<inner >*`.
 

@@ -15,9 +15,11 @@ func Resolve(f *parser.File) (*Model, error) {
 	}
 
 	var pkgParts []string
+
 	if f.Package != "" {
 		pkgParts = strings.Split(f.Package, ".")
 	}
+
 	className := f.Class.Name
 	pathDir := path.Join(pkgParts...)
 	idlPath := path.Join(pathDir, className+".idl")
@@ -29,13 +31,13 @@ func Resolve(f *parser.File) (*Model, error) {
 		OutputBase: className,
 		IDLPath:    idlPath,
 		Class: Class{
-			Name:     className,
-			Doc:      f.Class.Doc,
-			Base:     f.Class.Base,
-			ImplName: className + "Implementation",
-			Adapter:  className + "Adapter",
-			Helper:   className + "Helper",
-			POD:      className + "POD",
+			Name:       className,
+			Doc:        f.Class.Doc,
+			Base:       f.Class.Base,
+			ImplName:   className + "Implementation",
+			Adapter:    className + "Adapter",
+			Helper:     className + "Helper",
+			POD:        className + "POD",
 			HasJSON:    hasAnnotation(f.Class.Annotations, "json"),
 			IsMock:     hasAnnotation(f.Class.Annotations, "mock"),
 			Implements: f.Class.Implements,
@@ -45,6 +47,7 @@ func Resolve(f *parser.File) (*Model, error) {
 	for _, imp := range f.Imports {
 		m.Imports = append(m.Imports, imp.Path)
 	}
+
 	for _, inc := range f.Includes {
 		m.Includes = append(m.Includes, inc.Path)
 	}
@@ -55,6 +58,7 @@ func Resolve(f *parser.File) (*Model, error) {
 
 	// Lower members in source order.
 	firstSeedAssigned := false
+
 	for _, mem := range f.Class.Members {
 		switch v := mem.(type) {
 		case *parser.Field:
@@ -92,6 +96,7 @@ func Resolve(f *parser.File) (*Model, error) {
 func lowerField(className string, f *parser.Field) Field {
 	hashInput := className + "." + f.Name
 	isConst := f.Static && f.Final && f.Default != "" && IsPrimitive(f.Type.Name)
+
 	return Field{
 		Name:         f.Name,
 		IDLType:      f.Type,
@@ -149,7 +154,9 @@ func lowerParams(in []parser.Param) []Param {
 	if len(in) == 0 {
 		return nil
 	}
+
 	out := make([]Param, len(in))
+
 	for i, p := range in {
 		out[i] = Param{
 			Name:         p.Name,
@@ -160,6 +167,7 @@ func lowerParams(in []parser.Param) []Param {
 			RawTemplate:  annotationArg(p.Annotations, "rawTemplate", "value"),
 		}
 	}
+
 	return out
 }
 

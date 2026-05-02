@@ -34,16 +34,16 @@ func TestNameHashCorpusFields(t *testing.T) {
 // Regenerate via scripts/gen-oracle.sh.
 func TestNameHashProbeFields(t *testing.T) {
 	cases := map[string]uint32{
-		"Probe.a":                                     0xa04f1ce7,
-		"Probe.A":                                     0x386caa07,
-		"Probe.aB":                                    0x32c0ba5c,
-		"Probe.ab_cd":                                 0x46e25503,
-		"Probe.field1":                                0x25b47b7c,
+		"Probe.a":      0xa04f1ce7,
+		"Probe.A":      0x386caa07,
+		"Probe.aB":     0x32c0ba5c,
+		"Probe.ab_cd":  0x46e25503,
+		"Probe.field1": 0x25b47b7c,
 		"Probe.very_long_field_name_with_underscores": 0x2f7e5f64,
-		"Probe.CamelCase":                             0x9243a6d2,
-		"Probe.snake_case":                            0x50aab8c3,
-		"Probe.mixedCase123":                          0xac6485b4,
-		"Probe.someBool":                              0x7943bb71,
+		"Probe.CamelCase":    0x9243a6d2,
+		"Probe.snake_case":   0x50aab8c3,
+		"Probe.mixedCase123": 0xac6485b4,
+		"Probe.someBool":     0x7943bb71,
 	}
 	runOracleCases(t, cases)
 }
@@ -53,6 +53,7 @@ func runOracleCases(t *testing.T, cases map[string]uint32) {
 	for input, want := range cases {
 		t.Run(input, func(t *testing.T) {
 			got := NameHash(input)
+
 			if got != want {
 				t.Fatalf("NameHash(%q) = %#08x, want %#08x", input, got, want)
 			}
@@ -74,6 +75,7 @@ func TestNameHashEmpty(t *testing.T) {
 // algorithm itself is correct, not just that it agrees with the JAR.
 func TestNameHashStandardVector(t *testing.T) {
 	const want = 0xFC891918
+
 	if got := NameHash("123456789"); got != want {
 		t.Fatalf("NameHash(\"123456789\") = %#08x, want %#08x", got, want)
 	}
@@ -82,6 +84,7 @@ func TestNameHashStandardVector(t *testing.T) {
 func BenchmarkNameHash(b *testing.B) {
 	const s = "ChatMessage.message"
 	b.SetBytes(int64(len(s)))
+
 	for i := 0; i < b.N; i++ {
 		_ = NameHash(s)
 	}

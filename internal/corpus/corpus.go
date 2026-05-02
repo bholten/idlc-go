@@ -21,6 +21,7 @@ import (
 // `internal/`.
 func RepoRoot() string {
 	_, here, _, _ := runtime.Caller(0)
+
 	return filepath.Clean(filepath.Join(filepath.Dir(here), "..", ".."))
 }
 
@@ -36,14 +37,17 @@ func MockDir() string { return filepath.Join(RepoRoot(), "testdata", "mock") }
 // Available reports whether the corpus is present (any .idl in IDLDir).
 func Available() bool {
 	entries, err := os.ReadDir(IDLDir())
+
 	if err != nil {
 		return false
 	}
+
 	for _, e := range entries {
 		if filepath.Ext(e.Name()) == ".idl" {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -52,6 +56,7 @@ func Available() bool {
 // `testdata/idl/` or `testdata/autogen/`.
 func RequireOrSkip(t *testing.T) {
 	t.Helper()
+
 	if !Available() {
 		t.Skip("Core3 corpus not present (run `make fetch-corpus` with CORE3_PATH set, or pull the Core3 submodule)")
 	}

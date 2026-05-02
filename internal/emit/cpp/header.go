@@ -164,6 +164,7 @@ func importIsForwardDecl(qname, thisClass, parent string, reg *sema.Registry) bo
 	}
 
 	_ = thisClass
+
 	return true
 }
 
@@ -221,6 +222,7 @@ func emitImportForwardDecl(w io.Writer, qname string, reg *sema.Registry) {
 		if i > 0 {
 			fmt.Fprintf(w, "::")
 		}
+
 		fmt.Fprintf(w, "%s", p)
 	}
 
@@ -246,6 +248,7 @@ func emitNamespaceOpen(w io.Writer, pkg []string) {
 	if len(pkg) == 0 {
 		return
 	}
+
 	for _, p := range pkg {
 		fmt.Fprintf(w, "namespace %s {\n", p)
 	}
@@ -257,6 +260,7 @@ func emitNamespaceClose(w io.Writer, pkg []string) {
 	if len(pkg) == 0 {
 		return
 	}
+
 	for i := len(pkg) - 1; i >= 0; i-- {
 		fmt.Fprintf(w, "} // namespace %s\n", pkg[i])
 	}
@@ -268,6 +272,7 @@ func emitUsingNamespace(w io.Writer, pkg []string) {
 	if len(pkg) == 0 {
 		return
 	}
+
 	fmt.Fprintf(w, "using namespace ")
 
 	for i, p := range pkg {

@@ -3,13 +3,13 @@
 // Two surface styles, both dispatched from `Run`:
 //
 //  1. Subcommand style — friendly for humans and scripts:
-//       idlc-go compile [-od dir] <file.idl>
-//       idlc-go dump-ast <file.idl>
-//       idlc-go hash <ClassName.fieldName>
+//     idlc-go compile [-od dir] <file.idl>
+//     idlc-go dump-ast <file.idl>
+//     idlc-go hash <ClassName.fieldName>
 //
 //  2. JAR-compat style — drop-in for Core3's CMake invocation:
-//       idlc-go -outdir autogen -cp <engine3> -silence -rbcpp \
-//               -sd <src> <pkg/Class.idl>
+//     idlc-go -outdir autogen -cp <engine3> -silence -rbcpp \
+//     -sd <src> <pkg/Class.idl>
 //
 // Detection: if the first arg starts with `-`, it's JAR-compat;
 // otherwise it's a subcommand. This matches how Core3's CMake will
@@ -261,6 +261,7 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 	idlPath := filepath.Join(sd, idlRel)
 
 	reg := sema.NewRegistry()
+
 	// IDLs first, so they win over same-named .h files. Headers second
 	// to register C++ utility classes (`Vector.h`, `Reference.h`, etc.)
 	// as `AddNoPOD` — the JAR uses this lookup to resolve
@@ -269,6 +270,7 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "idlc-go: scan %s: %v\n", sd, err)
 		return 1
 	}
+
 	if cp != "" {
 		if err := reg.LoadFromDir(cp); err != nil {
 			fmt.Fprintf(stderr, "idlc-go: scan %s: %v\n", cp, err)
@@ -284,6 +286,7 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "idlc-go: scan headers %s: %v\n", sd, err)
 		return 1
 	}
+
 	if cp != "" {
 		if err := reg.LoadExternalHeadersFromDir(cp); err != nil {
 			fmt.Fprintf(stderr, "idlc-go: scan external headers %s: %v\n", cp, err)
@@ -302,6 +305,7 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 	// is emitted (mirrors the JAR behavior under -DCOMPILE_TESTS=OFF).
 	if noMocks {
 		m.Class.IsMock = false
+
 		for i := range m.Class.Methods {
 			m.Class.Methods[i].IsMock = false
 		}
@@ -314,9 +318,11 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 	// uses the file path for output, package only for the C++
 	// namespace).
 	pkgDir := path.Dir(idlRel)
+
 	if pkgDir == "." {
 		pkgDir = ""
 	}
+
 	m.HeaderPath = path.Join(pkgDir, m.Class.Name+".h")
 	m.SourcePath = path.Join(pkgDir, m.Class.Name+".cpp")
 

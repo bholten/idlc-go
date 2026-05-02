@@ -117,19 +117,24 @@ func (l *Lexer) Next() Token {
 
 func (l *Lexer) numberLit(pos Pos) Token {
 	start := l.off
+
 	if ch, _ := l.peek(); ch == '-' {
 		l.advance()
 	}
+
 	for !l.eof() {
 		ch, _ := l.peek()
+
 		if isDigit(ch) || ch == '.' || ch == 'x' || ch == 'X' ||
 			(ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') ||
 			ch == 'L' || ch == 'l' || ch == 'U' || ch == 'u' || ch == 'f' || ch == 'F' {
 			l.advance()
 			continue
 		}
+
 		break
 	}
+
 	return Token{Kind: NumberLit, Lit: string(l.src[start:l.off]), Pos: pos}
 }
 
@@ -198,9 +203,11 @@ func (l *Lexer) skipStringInBody() error {
 
 		if ch == '\\' {
 			l.advance()
+
 			if l.eof() {
 				return fmt.Errorf("%s: unterminated string", l.Pos())
 			}
+
 			l.advance()
 			continue
 		}
@@ -220,6 +227,7 @@ func (l *Lexer) skipLineComment() {
 	for !l.eof() {
 		ch, _ := l.peek()
 		l.advance()
+
 		if ch == '\n' {
 			return
 		}
@@ -317,6 +325,7 @@ func (l *Lexer) identOrKeyword(pos Pos) Token {
 
 		l.advance()
 	}
+
 	lit := string(l.src[start:l.off])
 
 	if kw, ok := keywords[lit]; ok {

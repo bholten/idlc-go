@@ -33,6 +33,7 @@ func emitStubHeader(w io.Writer, m *sema.Model) {
 	fmt.Fprintf(w, "class %s : public %s {\n", c.Name, c.StubBase())
 	fmt.Fprintf(w, "public:\n")
 	emitConstantDecls(w, c)
+
 	if cc := customCtor(c); cc != nil {
 		// IDL-declared non-default ctor: replace the public default-ctor
 		// declaration with one taking the custom args (with their IDL
@@ -40,6 +41,7 @@ func emitStubHeader(w io.Writer, m *sema.Model) {
 		// Class() { }` slot so that a gmock subclass can default-
 		// construct the parent — non-mock classes don't need it.
 		fmt.Fprintf(w, "\t%s(%s);\n\n", c.Name, joinParamDeclsWithDefaults(cc.Params, m.Registry))
+
 		if c.IsMock {
 			fmt.Fprintf(w, "protected:\n")
 			fmt.Fprintf(w, "\t%s() { }\n", c.Name)
@@ -57,13 +59,16 @@ func emitStubHeader(w io.Writer, m *sema.Model) {
 		if !methodVisibleOnStub(meth) {
 			continue
 		}
+
 		if meth.Name == "finalize" {
 			// JAR quirk: finalize is not declared on the stub class — it
 			// inherits the parent's finalize. Skip both decl and body.
 			continue
 		}
+
 		emitDocComment(w, meth.Doc)
 		virtualPrefix := ""
+
 		if meth.IsVirtualStub || meth.IsMock {
 			// `@virtualStub` and `@mock` both add `virtual ` to the
 			// stub-class method declaration — `@mock` so the gmock
@@ -71,6 +76,7 @@ func emitStubHeader(w io.Writer, m *sema.Model) {
 			// virtualisation.
 			virtualPrefix = "virtual "
 		}
+
 		fmt.Fprintf(w, "\t%s%s %s(%s)%s;\n\n",
 			virtualPrefix,
 			returnDeclForMethod(meth, m.Registry), meth.Name, joinParamDeclsWithDefaults(meth.Params, m.Registry), constSuffix(meth))
@@ -90,6 +96,7 @@ func emitStubHeader(w io.Writer, m *sema.Model) {
 		if !meth.IsNativeStub || !methodVisibleOnStub(meth) {
 			continue
 		}
+
 		fmt.Fprintf(w, "\t%s __%s(%s);\n\n",
 			returnDeclForMethod(meth, m.Registry), meth.Name, joinParamDeclsWithDefaults(meth.Params, m.Registry))
 	}
@@ -114,6 +121,7 @@ func emitStubSource(w io.Writer, m *sema.Model) {
 		if !methodVisibleOnStub(meth) {
 			continue
 		}
+
 		if meth.Name == "finalize" {
 			continue
 		}
@@ -151,6 +159,7 @@ func emitStubCtors(w io.Writer, m *sema.Model) {
 		} else {
 			fmt.Fprintf(w, "%s::%s() : %s(DummyConstructorParameter::instance()) {\n", c.Name, c.Name, c.Base)
 		}
+
 		fmt.Fprintf(w, "\t%s* _implementation = new %s();\n", c.ImplName, c.ImplName)
 		fmt.Fprintf(w, "\t_impl = _implementation;\n")
 		fmt.Fprintf(w, "\t_impl->_setStub(this);\n")
@@ -168,9 +177,11 @@ func emitStubCtors(w io.Writer, m *sema.Model) {
 		fmt.Fprintf(w, "\t%s* _implementation = new %s(%s);\n",
 			c.ImplName, c.ImplName, joinArgs(cc.Params))
 		fmt.Fprintf(w, "\t_impl = _implementation;\n")
+
 		if cc.Body == nil {
 			fmt.Fprintf(w, "\t_implementation->_initializeImplementation();\n")
 		}
+
 		fmt.Fprintf(w, "\t_impl->_setStub(this);\n")
 		fmt.Fprintf(w, "\t_setClassName(\"%s\");\n", c.Name)
 		fmt.Fprintf(w, "}\n\n")
@@ -181,6 +192,7 @@ func emitStubCtors(w io.Writer, m *sema.Model) {
 	} else {
 		fmt.Fprintf(w, "%s::%s(DummyConstructorParameter* param) : %s(param) {\n", c.Name, c.Name, c.Base)
 	}
+
 	fmt.Fprintf(w, "\t_setClassName(\"%s\");\n", c.Name)
 	fmt.Fprintf(w, "}\n\n")
 
@@ -192,6 +204,7 @@ func emitStubCtors(w io.Writer, m *sema.Model) {
 // (Fields probe surfaced this — class with no public-non-local methods).
 func emitRPCEnum(w io.Writer, c sema.Class) {
 	hasAny := false
+
 	for _, meth := range c.Methods {
 		if meth.IsLocal || !methodVisibleOnStub(meth) {
 			continue
@@ -199,23 +212,29 @@ func emitRPCEnum(w io.Writer, c sema.Class) {
 		hasAny = true
 		break
 	}
+
 	if !hasAny {
 		return
 	}
 
 	fmt.Fprintf(w, "enum {")
 	first := true
+
 	for _, meth := range c.Methods {
 		if meth.IsLocal || !methodVisibleOnStub(meth) {
 			continue
 		}
+
 		if !first {
 			fmt.Fprintf(w, ",")
 		}
+
 		fmt.Fprintf(w, "%s", meth.RPCName)
+
 		if meth.RPCSeed != nil {
 			fmt.Fprintf(w, " = %d", *meth.RPCSeed)
 		}
+
 		first = false
 	}
 	// JAR quirk: the RPC enum gets a trailing comma when the IDL has
@@ -228,6 +247,7 @@ func emitRPCEnum(w io.Writer, c sema.Class) {
 	if !first && lastMethodExcludedFromRPCEnum(c) {
 		fmt.Fprintf(w, ",")
 	}
+
 	fmt.Fprintf(w, "};\n\n")
 }
 
@@ -235,6 +255,7 @@ func emitRPCEnum(w io.Writer, c sema.Class) {
 // `@local` (no RPC marshalling — just throw-or-delegate).
 func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 	c := model.Class
+
 	if m.IsLocal {
 		emitStubMethodLocal(w, model, m)
 		return
@@ -243,6 +264,7 @@ func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 	// JAR rule: @read AND @dirty methods both use _getImplementationForRead.
 	// Anything else uses _getImplementation.
 	getImpl := "_getImplementation()"
+
 	if m.IsRead || m.IsDirty {
 		getImpl = "_getImplementationForRead()"
 	}
@@ -257,6 +279,7 @@ func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 
 	for _, p := range m.Params {
 		mangle := sema.WireMangle(p.IDLType)
+
 		if p.Dereferenced && !sema.IsPrimitive(p.IDLType.Name) {
 			// @dereferenced non-primitive params marshal via the
 			// "DereferencedSerializable" wire form: pass-by-reference
@@ -266,8 +289,10 @@ func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 			// surfaced by the Params probe.
 			mangle = "DereferencedSerializable"
 		}
+
 		fmt.Fprintf(w, "\t\tmethod.add%sParameter(%s);\n", mangle, p.Name)
 	}
+
 	fmt.Fprintf(w, "\n")
 
 	switch {
@@ -285,9 +310,11 @@ func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 		// bare class pointer; implicit conversion happens at the
 		// return site.
 		castType := sema.CppRenderMethodType(m.Return, model.Registry)
+
 		if m.IsFinal {
 			castType = "const " + castType
 		}
+
 		if !m.IsDereferenced {
 			castType += "*"
 		}
@@ -305,22 +332,27 @@ func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 	}
 
 	fmt.Fprintf(w, "\t} else {\n")
+
 	if m.IsPreLocked {
 		fmt.Fprintf(w, "\t\tassert(this->isLockedByCurrentThread());\n")
 	}
+
 	if m.IsArg1PreLocked && len(m.Params) >= 1 {
 		fmt.Fprintf(w, "\t\tassert((%s == NULL) || %s->isLockedByCurrentThread());\n",
 			m.Params[0].Name, m.Params[0].Name)
 	}
+
 	if m.IsArg2PreLocked && len(m.Params) >= 2 {
 		fmt.Fprintf(w, "\t\tassert((%s == NULL) || %s->isLockedByCurrentThread());\n",
 			m.Params[1].Name, m.Params[1].Name)
 	}
+
 	if m.IsVoid() {
 		fmt.Fprintf(w, "\t\t_implementation->%s(%s);\n", m.Name, joinArgs(m.Params))
 	} else {
 		fmt.Fprintf(w, "\t\treturn _implementation->%s(%s);\n", m.Name, joinArgs(m.Params))
 	}
+
 	fmt.Fprintf(w, "\t}\n}\n\n")
 }
 
@@ -332,6 +364,7 @@ func emitStubMethodLocal(w io.Writer, model *sema.Model, m sema.Method) {
 	// JAR rule: @read AND @dirty methods both use _getImplementationForRead.
 	// Anything else uses _getImplementation.
 	getImpl := "_getImplementation()"
+
 	if m.IsRead || m.IsDirty {
 		getImpl = "_getImplementationForRead()"
 	}
@@ -342,21 +375,26 @@ func emitStubMethodLocal(w io.Writer, model *sema.Model, m sema.Method) {
 	fmt.Fprintf(w, "\tif (unlikely(_implementation == NULL)) {\n")
 	fmt.Fprintf(w, "\t\tthrow ObjectNotLocalException(this);\n\n")
 	fmt.Fprintf(w, "\t} else {\n")
+
 	if m.IsPreLocked {
 		fmt.Fprintf(w, "\t\tassert(this->isLockedByCurrentThread());\n")
 	}
+
 	if m.IsArg1PreLocked && len(m.Params) >= 1 {
 		fmt.Fprintf(w, "\t\tassert((%s == NULL) || %s->isLockedByCurrentThread());\n",
 			m.Params[0].Name, m.Params[0].Name)
 	}
+
 	if m.IsArg2PreLocked && len(m.Params) >= 2 {
 		fmt.Fprintf(w, "\t\tassert((%s == NULL) || %s->isLockedByCurrentThread());\n",
 			m.Params[1].Name, m.Params[1].Name)
 	}
+
 	if m.IsVoid() {
 		fmt.Fprintf(w, "\t\t_implementation->%s(%s);\n", m.Name, joinArgs(m.Params))
 	} else {
 		fmt.Fprintf(w, "\t\treturn _implementation->%s(%s);\n", m.Name, joinArgs(m.Params))
 	}
+
 	fmt.Fprintf(w, "\t}\n}\n\n")
 }

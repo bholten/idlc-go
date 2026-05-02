@@ -10,7 +10,6 @@ import (
 	"github.com/bholten/tools/idlc-go/internal/sema"
 )
 
-
 // importToInclude turns "engine.core.ManagedObject" into
 // "engine/core/ManagedObject.h".
 func importToInclude(qname string) string {
@@ -27,19 +26,23 @@ func guardName(className string) string {
 // trailing `*` for pointer-returning class types.
 //
 // Examples:
-//   void                  → "void"
-//   string                → "String"
-//   Vector<unsigned long> → "Vector<unsigned long long>*"
-//   ChatRoom (no anns)    → "ChatRoom*"
-//   @reference ChatRoom   → "Reference<ChatRoom* >"
+//
+//	void                  → "void"
+//	string                → "String"
+//	Vector<unsigned long> → "Vector<unsigned long long>*"
+//	ChatRoom (no anns)    → "ChatRoom*"
+//	@reference ChatRoom   → "Reference<ChatRoom* >"
 func returnDecl(t parser.Type, reg *sema.Registry) string {
 	if t.Name == "void" {
 		return "void"
 	}
+
 	rendered := sema.CppRenderMethodType(t, reg)
+
 	if sema.IsPointerReturn(t) {
 		return rendered + "*"
 	}
+
 	return rendered
 }
 
@@ -60,18 +63,23 @@ func returnDeclForMethod(m sema.Method, reg *sema.Registry) string {
 		rendered := m.Return.Name + "<" + m.RawTemplate + " >"
 		return maybeConst(m.IsFinal, rendered+"*")
 	}
+
 	switch {
 	case m.IsReference && m.Return.Generics == "" && !sema.IsPrimitive(m.Return.Name):
 		inner := sema.CppRenderMethodType(m.Return, reg)
 		if m.IsFinal {
 			inner = "const " + inner
 		}
+
 		return "Reference<" + inner + "* >"
+
 	case m.IsWeakReference && m.Return.Generics == "" && !sema.IsPrimitive(m.Return.Name):
 		inner := sema.CppRenderMethodType(m.Return, reg)
+
 		if m.IsFinal {
 			inner = "const " + inner
 		}
+
 		// Same managed-vs-non-managed split as `CppRenderFieldType`'s
 		// `@weakReference` branch: managed → `ManagedWeakReference<X*>`,
 		// non-managed → plain `WeakReference<X*>`. Mismatching the two
@@ -80,10 +88,13 @@ func returnDeclForMethod(m sema.Method, reg *sema.Registry) string {
 		if reg != nil && reg.IsManagedShortName(m.Return.Name) {
 			return "ManagedWeakReference<" + inner + "* >"
 		}
+
 		return "WeakReference<" + inner + "* >"
+
 	case m.IsDereferenced && m.Return.Name != "void":
 		return maybeConst(m.IsFinal, sema.CppRenderMethodType(m.Return, reg))
 	}
+
 	return maybeConst(m.IsFinal, returnDecl(m.Return, reg))
 }
 
@@ -94,6 +105,7 @@ func maybeConst(final bool, rendered string) string {
 	if !final || rendered == "void" {
 		return rendered
 	}
+
 	return "const " + rendered
 }
 
@@ -122,6 +134,7 @@ func paramDecl(p sema.Param, reg *sema.Registry) string {
 	rendered := sema.CppRenderMethodType(p.IDLType, reg)
 
 	constPrefix := ""
+
 	if p.Final {
 		constPrefix = "const "
 	}
@@ -143,6 +156,7 @@ func paramDecl(p sema.Param, reg *sema.Registry) string {
 		if p.IDLType.Generics != "" && sema.IsSmartPointerWrapper(p.IDLType.Name) {
 			return constPrefix + rendered + " " + p.Name
 		}
+
 		return constPrefix + rendered + "* " + p.Name
 	}
 
@@ -154,9 +168,11 @@ func paramDecl(p sema.Param, reg *sema.Registry) string {
 // IDL idioms (e.g. `null`) into their C++ equivalents (`NULL`).
 func paramDeclWithDefault(p sema.Param, reg *sema.Registry) string {
 	d := paramDecl(p, reg)
+
 	if p.Default != "" {
 		return d + " = " + paramDefaultExpr(p.Default)
 	}
+
 	return d
 }
 
@@ -168,6 +184,7 @@ func paramDefaultExpr(s string) string {
 	if s == "null" {
 		return "NULL"
 	}
+
 	return s
 }
 
@@ -183,7 +200,9 @@ func joinParamDeclsX(params []sema.Param, withDefaults bool, reg *sema.Registry)
 	if len(params) == 0 {
 		return ""
 	}
+
 	out := make([]string, len(params))
+
 	for i, p := range params {
 		if withDefaults {
 			out[i] = paramDeclWithDefault(p, reg)
@@ -191,6 +210,7 @@ func joinParamDeclsX(params []sema.Param, withDefaults bool, reg *sema.Registry)
 			out[i] = paramDecl(p, reg)
 		}
 	}
+
 	return strings.Join(out, ", ")
 }
 
@@ -198,10 +218,13 @@ func joinArgs(params []sema.Param) string {
 	if len(params) == 0 {
 		return ""
 	}
+
 	out := make([]string, len(params))
+
 	for i, p := range params {
 		out[i] = p.Name
 	}
+
 	return strings.Join(out, ", ")
 }
 
@@ -211,6 +234,7 @@ func constSuffix(m sema.Method) string {
 	if m.IsRead {
 		return " const"
 	}
+
 	return ""
 }
 
@@ -223,5 +247,6 @@ func emitDocComment(w io.Writer, doc string) {
 	if doc == "" {
 		return
 	}
+
 	fmt.Fprintf(w, "\t%s\n", doc)
 }

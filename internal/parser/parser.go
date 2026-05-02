@@ -76,9 +76,11 @@ func (p *Parser) ParseFile() (out *File, err error) {
 
 	classDoc := p.lx.TakeDocComment()
 	classAnns := p.parseAnnotations()
+
 	if classDoc == "" {
 		classDoc = p.lx.TakeDocComment()
 	}
+
 	cls := p.parseClass()
 	cls.Annotations = append(classAnns, cls.Annotations...)
 	cls.Doc = classDoc
@@ -94,27 +96,34 @@ func (p *Parser) parseClass() *Class {
 	name := p.expectIdent()
 
 	c := &Class{Pos: pos, Name: name}
+
 	if p.tok.Kind == lexer.KwExtends {
 		p.advance()
 		c.Base = p.parseQName()
 	}
+
 	if p.tok.Kind == lexer.KwImplements {
 		p.advance()
 		for {
 			c.Implements = append(c.Implements, p.parseQName())
+
 			if p.tok.Kind == lexer.Comma {
 				p.advance()
 				continue
 			}
+
 			break
 		}
 	}
 
 	p.expect(lexer.LBrace)
+
 	for p.tok.Kind != lexer.RBrace && p.tok.Kind != lexer.EOF {
 		c.Members = append(c.Members, p.parseMember(name))
 	}
+
 	p.expect(lexer.RBrace)
+
 	return c
 }
 
@@ -133,6 +142,7 @@ type modifiers struct {
 
 func (p *Parser) parseModifiers() modifiers {
 	m := modifiers{visibility: VisDefault}
+
 	for {
 		switch p.tok.Kind {
 		case lexer.KwPublic:
@@ -156,6 +166,7 @@ func (p *Parser) parseModifiers() modifiers {
 		default:
 			return m
 		}
+
 		p.advance()
 	}
 }
@@ -164,35 +175,43 @@ func (p *Parser) parseMember(className string) Member {
 	pos := p.tok.Pos
 	doc := p.lx.TakeDocComment()
 	anns := p.parseAnnotations()
+
 	// A doc comment may precede *or* sit between annotations. Take any
 	// late-arriving one too, so `@a /** doc */ @b void foo()` works.
 	if doc == "" {
 		doc = p.lx.TakeDocComment()
 	}
+
 	mods := p.parseModifiers()
 
 	// Constructor probe: cur token is the class name AND next is '('.
 	if p.tok.Kind == lexer.Ident && p.tok.Lit == className {
 		nameTok := p.tok
 		p.advance()
+
 		if p.tok.Kind == lexer.LParen {
 			return p.parseConstructorRest(pos, anns, mods, nameTok.Lit)
 		}
+
 		// Not a ctor — the identifier was actually a type matching the
 		// class name. Synthesize a Type (with optional generics) and
 		// fall through.
 		typ := Type{Pos: nameTok.Pos, Name: nameTok.Lit}
+
 		if p.tok.Kind == lexer.LessThan {
 			typ.Generics = p.parseGenericArgs()
 		}
+
 		return p.parseFieldOrMethod(pos, anns, mods, typ)
 	}
 
 	typ := p.parseType()
 	mem := p.parseFieldOrMethod(pos, anns, mods, typ)
+
 	if m, ok := mem.(*Method); ok {
 		m.Doc = doc
 	}
+
 	return mem
 }
 
@@ -204,7 +223,9 @@ func (p *Parser) parseConstructorRest(pos lexer.Pos, anns []Annotation, mods mod
 		Native:      mods.native,
 		Name:        name,
 	}
+
 	c.Params = p.parseParamList()
+
 	switch p.tok.Kind {
 	case lexer.Semi:
 		// `native` ctors with no body terminate with a semicolon.
@@ -269,6 +290,7 @@ func (p *Parser) parseMethodRest(pos lexer.Pos, anns []Annotation, mods modifier
 		Return:       ret,
 		Name:         name,
 	}
+
 	m.Params = p.parseParamList()
 
 	switch p.tok.Kind {
@@ -287,18 +309,23 @@ func (p *Parser) parseMethodRest(pos lexer.Pos, anns []Annotation, mods modifier
 func (p *Parser) parseParamList() []Param {
 	p.expect(lexer.LParen)
 	var params []Param
+
 	if p.tok.Kind == lexer.RParen {
 		p.advance()
 		return params
 	}
+
 	for {
 		params = append(params, p.parseParam())
+
 		if p.tok.Kind == lexer.Comma {
 			p.advance()
 			continue
 		}
+
 		break
 	}
+
 	p.expect(lexer.RParen)
 	return params
 }
@@ -307,26 +334,32 @@ func (p *Parser) parseParam() Param {
 	pos := p.tok.Pos
 	anns := p.parseAnnotations()
 	final := false
+
 	if p.tok.Kind == lexer.KwFinal {
 		final = true
 		p.advance()
 	}
+
 	// Annotations may also appear *after* `final` in the corpus
 	// (e.g. `final @dereferenced Foo bar`). Be permissive.
 	anns = append(anns, p.parseAnnotations()...)
+
 	// `@final` as a param annotation is equivalent to the `final` modifier.
 	for _, a := range anns {
 		if a.Name == "final" {
 			final = true
 		}
 	}
+
 	typ := p.parseType()
 	name := p.expectIdent()
 	def := ""
+
 	if p.tok.Kind == lexer.Equals {
 		p.advance()
 		def = p.parseAtomicExpr()
 	}
+
 	return Param{Pos: pos, Annotations: anns, Final: final, Type: typ, Name: name, Default: def}
 }
 
@@ -334,18 +367,22 @@ func (p *Parser) parseParam() Param {
 // `unsigned int|long`, and a trailing `<args>` for generic types.
 func (p *Parser) parseType() Type {
 	pos := p.tok.Pos
+
 	if p.tok.Kind == lexer.KwVoid {
 		p.advance()
 		return Type{Pos: pos, Name: "void"}
 	}
 
 	var name string
+
 	// `unsigned int` / `unsigned long`
 	if p.tok.Kind == lexer.Ident && p.tok.Lit == "unsigned" {
 		p.advance()
+
 		if p.tok.Kind != lexer.Ident {
 			p.errorf("expected primitive type after 'unsigned', got %s", p.tok.Lit)
 		}
+
 		second := p.tok.Lit
 		p.advance()
 		name = "unsigned " + second
@@ -354,9 +391,11 @@ func (p *Parser) parseType() Type {
 	}
 
 	t := Type{Pos: pos, Name: name}
+
 	if p.tok.Kind == lexer.LessThan {
 		t.Generics = p.parseGenericArgs()
 	}
+
 	return t
 }
 
@@ -365,6 +404,7 @@ func (p *Parser) parseType() Type {
 func (p *Parser) parseGenericArgs() string {
 	p.expect(lexer.LessThan)
 	var parts []string
+
 	for {
 		t := p.parseType()
 		parts = append(parts, t.Render())
@@ -372,9 +412,12 @@ func (p *Parser) parseGenericArgs() string {
 			p.advance()
 			continue
 		}
+
 		break
 	}
+
 	p.expect(lexer.GreaterThan)
+
 	return strings.Join(parts, ", ")
 }
 
@@ -400,24 +443,30 @@ func (p *Parser) parseAtomicExpr() string {
 		}
 		return strings.Join(parts, ".")
 	}
+
 	p.errorf("expected default-value atom, got %v (%q)", p.tok.Kind, p.tok.Lit)
+
 	return ""
 }
 
 func (p *Parser) parseQName() string {
 	parts := []string{p.expectIdent()}
+
 	for p.tok.Kind == lexer.Dot {
 		p.advance()
 		parts = append(parts, p.expectIdent())
 	}
+
 	return strings.Join(parts, ".")
 }
 
 func (p *Parser) parseAnnotations() []Annotation {
 	var out []Annotation
+
 	for p.tok.Kind == lexer.At {
 		out = append(out, p.parseAnnotation())
 	}
+
 	return out
 }
 
@@ -425,31 +474,39 @@ func (p *Parser) parseAnnotation() Annotation {
 	pos := p.tok.Pos
 	p.expect(lexer.At)
 	var name string
+
 	if p.tok.Kind == lexer.KwFinal {
 		name = p.tok.Lit
 		p.advance()
 	} else {
 		name = p.expectIdent()
 	}
+
 	a := Annotation{Pos: pos, Name: name}
 
 	if p.tok.Kind != lexer.LParen {
 		return a
 	}
+
 	p.advance() // (
 	a.Args = map[string]string{}
+
 	if p.tok.Kind == lexer.RParen {
 		p.advance()
 		return a
 	}
+
 	for {
 		key := p.expectIdent()
 		p.expect(lexer.Equals)
+
 		if p.tok.Kind != lexer.StringLit {
 			p.errorf("expected string literal in annotation arg, got %s", p.tok.Lit)
 		}
+
 		a.Args[key] = p.tok.Lit
 		p.advance()
+
 		if p.tok.Kind == lexer.Comma {
 			p.advance()
 			continue
@@ -457,11 +514,13 @@ func (p *Parser) parseAnnotation() Annotation {
 		break
 	}
 	p.expect(lexer.RParen)
+
 	return a
 }
 
 func (p *Parser) parseBody() Body {
 	pos := p.tok.Pos
+
 	if p.tok.Kind != lexer.LBrace {
 		p.errorf("expected '{', got %v (%q)", p.tok.Kind, p.tok.Lit)
 	}
@@ -471,12 +530,15 @@ func (p *Parser) parseBody() Body {
 	// over the body's first token. Instead, hand control directly to
 	// CaptureBalancedBlock, which scans bytes until the matching '}'.
 	raw, err := p.lx.CaptureBalancedBlock()
+
 	if err != nil {
 		p.errorf("%v", err)
 	}
+
 	// CaptureBalancedBlock consumed through the closing brace, so prime
 	// the next token now.
 	p.advance()
+
 	return Body{Pos: pos, Raw: raw}
 }
 
@@ -490,6 +552,7 @@ func (p *Parser) expect(k lexer.Kind) {
 	if p.tok.Kind != k {
 		p.errorf("expected %v, got %v (%q)", k, p.tok.Kind, p.tok.Lit)
 	}
+
 	p.advance()
 }
 
@@ -497,8 +560,10 @@ func (p *Parser) expectIdent() string {
 	if p.tok.Kind != lexer.Ident {
 		p.errorf("expected identifier, got %v (%q)", p.tok.Kind, p.tok.Lit)
 	}
+
 	lit := p.tok.Lit
 	p.advance()
+
 	return lit
 }
 
