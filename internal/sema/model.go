@@ -75,6 +75,7 @@ type Class struct {
 
 	HasJSON    bool
 	IsMock     bool     // @mock annotation — emit gmock.h include + Mock<Class> subclass.
+	IsLua      bool     // @lua annotation — emit Luna-bridge wrapper class `Lua<Class>` + .cpp impl.
 	Implements []string // unqualified type names from IDL `implements` clause.
 
 	Fields  []Field

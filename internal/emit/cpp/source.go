@@ -14,6 +14,7 @@ func emitSource(w io.Writer, m *sema.Model, reg *sema.Registry) {
 	emitImplSource(w, m)
 	emitAdapterSource(w, m)
 	emitHelperSource(w, m)
+	emitLuaSource(w, m)
 	emitPODSource(w, m)
 }
 

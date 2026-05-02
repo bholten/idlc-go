@@ -22,6 +22,7 @@ func emitHeader(w io.Writer, m *sema.Model, reg *sema.Registry) {
 		emitImplHeader(w, m)
 		emitAdapterHeader(w, m)
 		emitHelperHeader(w, m)
+		emitLuaHeader(w, m)
 		emitMockHeader(w, m)
 	}
 
@@ -33,6 +34,7 @@ func emitHeader(w io.Writer, m *sema.Model, reg *sema.Registry) {
 		emitImplHeader(w, m)
 		emitAdapterHeader(w, m)
 		emitHelperHeader(w, m)
+		emitLuaHeader(w, m)
 		emitMockHeader(w, m)
 		emitNamespaceClose(w, m.Package)
 		emitUsingNamespace(w, m.Package)

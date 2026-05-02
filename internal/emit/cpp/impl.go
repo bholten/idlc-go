@@ -374,6 +374,21 @@ func hasNoIDLCtor(c sema.Class) bool {
 	return len(c.Ctors) == 0
 }
 
+// hasNativeDefaultCtor reports whether the class has an IDL default
+// ctor declared `native` — `public native Class();` with no body. The
+// JAR skips emitting the default ctor body in autogen for these
+// classes; the hand-written `<Class>Implementation.cpp` provides it.
+// Account is the canonical example.
+func hasNativeDefaultCtor(c sema.Class) bool {
+	for _, ctor := range c.Ctors {
+		if len(ctor.Params) == 0 && ctor.Body == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
 // hasIDLFinalize reports whether the IDL declares a method named
 // `finalize`. The JAR special-cases this name: the boilerplate
 // `void finalize();` declaration is suppressed (the IDL-declared one
@@ -480,8 +495,12 @@ func emitImplSource(w io.Writer, m *sema.Model) {
 		// Classes with no IDL ctor at all already emitted their default
 		// ctor early (before the dummy ctor); skip emitting it again
 		// here. Classes with a default-args IDL ctor (e.g. ChatMessage)
-		// emit it here, late, with the IDL body.
-		if !hasNoIDLCtor(c) {
+		// emit it here, late, with the IDL body — UNLESS the IDL
+		// declares the default ctor `native`, in which case the body is
+		// hand-written (e.g. Account: `public native Account();` →
+		// AccountImplementation.cpp provides the body) and we skip emit
+		// to avoid a multiple-definition link error.
+		if !hasNoIDLCtor(c) && !hasNativeDefaultCtor(c) {
 			emitImplDefaultCtor(w, m)
 		}
 	} else if cc.Body == nil {

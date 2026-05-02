@@ -40,6 +40,7 @@ func Resolve(f *parser.File) (*Model, error) {
 			POD:        className + "POD",
 			HasJSON:    hasAnnotation(f.Class.Annotations, "json"),
 			IsMock:     hasAnnotation(f.Class.Annotations, "mock"),
+			IsLua:      hasAnnotation(f.Class.Annotations, "lua"),
 			Implements: f.Class.Implements,
 		},
 	}
