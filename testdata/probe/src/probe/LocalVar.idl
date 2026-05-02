@@ -1,0 +1,58 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe for the local-variable class-wrap rule.
+//
+// In the IDL body the author writes `Type ident = expr;` — for an IDL-
+// managed class type, the JAR rewrites the C++ declaration to wrap the
+// local in `ManagedReference<Type* >`. Subsequent `ident.method()`
+// accesses get the `.X → ->X` rewrite as if the local were a managed
+// field.
+//
+// Engine3 utility types (`String`, etc.) are stored by value and don't
+// get the wrap.
+class LocalVar extends ManagedObject {
+	private ManagedObject classField;
+	private string strField;
+
+	@local
+	public void managedClassLocal() {
+		// Bare local of a managed IDL class. Should emit:
+		//   ManagedReference<ManagedObject* > local = classField;
+		ManagedObject local = classField;
+	}
+
+	@local
+	public void managedLocalThenAccess() {
+		// After the wrapped declaration, `local.method()` must rewrite
+		// to `local->method()` exactly as for a managed field.
+		ManagedObject local = classField;
+		local.updateForWrite();
+		local.lock();
+	}
+
+	@local
+	public void primitiveLocal() {
+		// Lowercase IDL `string` doesn't match the local-var class
+		// regex (it requires Capitalized type). The body rewriter still
+		// turns `string` → `String` so the C++ compiles.
+		string local = "hello";
+		strField = local;
+	}
+
+	@local
+	public void multipleManagedLocals() {
+		// Two managed locals in the same body — both should wrap, and
+		// both names should make it into classNames so subsequent
+		// accesses get `->`.
+		ManagedObject a = classField;
+		ManagedObject b = classField;
+		a.updateForWrite();
+		b.lock();
+	}
+}

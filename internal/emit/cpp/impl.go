@@ -986,8 +986,15 @@ func findIfElseNoBraces(lines []string) map[int]ifElseEntry {
 			continue
 		}
 
-		// if-only (no else) — preview points at if's body too.
-		out[i] = ifElseEntry{role: ifElseIfLine, glommedTarget: ifBody, previewTarget: ifBody}
+		// if-only (no else): preview = the line *after* the if-body in
+		// the surrounding scope, NOT the if-body itself. The JAR's body
+		// capture includes the closing `}` of the enclosing method, so
+		// when the if is the last statement of its method the preview
+		// is the synthesized `\t}` line. We don't capture the brace, so
+		// we mark the case with a sentinel (`previewTarget < 0`) and
+		// emit the synthesized line in `emitIfElseLine`.
+		nextLine := nextNonBlank(lines, ifBody+1)
+		out[i] = ifElseEntry{role: ifElseIfLine, glommedTarget: ifBody, previewTarget: nextLine}
 		out[ifBody] = ifElseEntry{role: ifElseBranch}
 	}
 
@@ -1014,8 +1021,18 @@ func emitIfElseLine(w io.Writer, m *sema.Model, ctx bodyCtx, lines []string, i i
 
 	switch r.role {
 	case ifElseIfLine:
-		// Preview: comment for the last sub-body of the block.
-		previewWS, previewBody := splitLeadingWhitespace(lines[r.previewTarget])
+		// Preview: comment for the last sub-body of the block (if-with-
+		// else) or the line after the if-body (if-without-else). When
+		// the if is the final statement of its enclosing method, the
+		// next "line" is the method's closing `}`, which our body
+		// capture excludes — synthesize it here as `\t}`.
+		var previewWS, previewBody string
+		if r.previewTarget < 0 {
+			previewWS = "\t"
+			previewBody = "}"
+		} else {
+			previewWS, previewBody = splitLeadingWhitespace(lines[r.previewTarget])
+		}
 		fmt.Fprintf(w, "\t// %s():  %s%s\n", m.IDLPath, collapseSpaceRuns(previewWS), previewBody)
 		// If line + glommed comment for the next sub-body. JAR quirk:
 		// the if and the comment are joined by a single tab on one

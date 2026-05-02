@@ -1,0 +1,47 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe for `@weakReference` field rendering and body access.
+//
+// `@weakReference` on an IDL-managed class wraps as
+// `ManagedWeakReference<T*>`. Body access uses `field.get()->method()`
+// because the wrapper has no `operator->` — `.get()` extracts the raw
+// pointer first.
+class WeakRef extends ManagedObject {
+	@weakReference
+	private ManagedObject weakField;
+
+	@local
+	public void methodAccess() {
+		// Calls a method on the weak-ref. Should emit
+		//   weakField.get()->updateForWrite();
+		weakField.updateForWrite();
+	}
+
+	@local
+	public void clearAssignment() {
+		// Plain assignment — no unwrap needed.
+		weakField = null;
+	}
+
+	@local
+	public void boolCheck() {
+		// `if (field)` works directly via the wrapper's bool conversion.
+		if (weakField)
+			weakField.lock();
+	}
+
+	@local
+	public void copyToStrong() {
+		// Local of managed type initialized from weak field — wraps as
+		// `ManagedReference<X* > strong = weakField;` and lets the
+		// implicit conversion do the work.
+		ManagedObject strong = weakField;
+		strong.updateForWrite();
+	}
+}

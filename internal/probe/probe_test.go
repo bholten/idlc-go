@@ -72,15 +72,20 @@ func buildProbeRegistry(t *testing.T, root string) *sema.Registry {
 	reg := sema.NewRegistry()
 	for _, qname := range []string{
 		"engine.core.ManagedObject",
+		"probe.Cast",
+		"probe.ChainedCall",
 		"probe.Constants",
 		"probe.Dispatch",
 		"probe.Fields",
 		"probe.Generics",
 		"probe.Inheritance",
 		"probe.Json",
+		"probe.LocalVar",
 		"probe.Locking",
+		"probe.NestedGenerics",
 		"probe.Params",
 		"probe.Returns",
+		"probe.WeakRef",
 	} {
 		reg.Add(qname)
 	}

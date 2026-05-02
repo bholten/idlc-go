@@ -1,0 +1,39 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+import system.util.Vector;
+import system.util.VectorMap;
+import system.lang.ref.Reference;
+
+// Probe for the recursive generic-arg rendering rules.
+//
+// The JAR renders generic args differently based on the OUTER head:
+//   - Smart-pointer wrappers (any name ending in `Reference`): inner
+//     class arg becomes bare `X*`; inner generic arg gets `*`
+//     appended after the close `>`.
+//   - Container generics (Vector, VectorMap, SortedVector, ...): inner
+//     class arg gets a Reference-wrap (`ManagedReference<X*>` for
+//     IDL-managed, `Reference<X*>` for everything else); inner generic
+//     arg passes through unchanged.
+//
+// KNOWN GAP: The .cpp `TypeInfo<...>::parseFromBinaryStream` and
+// `toBinaryStream` for nested generic fields uses a different wrap
+// rule than the field-decl rendering. We currently match the field
+// declarations in the .h but NOT the TypeInfo lines in the .cpp.
+class NestedGenerics extends ManagedObject {
+	@dereferenced
+	private Vector<unsigned long> primitiveVector;
+
+	private Reference<ManagedObject> refToManaged;
+
+	@dereferenced
+	private VectorMap<int, Reference<ManagedObject> > mapWithRef;
+
+	private Reference<Vector<int> > refToVector;
+
+	private Reference<Vector<Reference<ManagedObject> > > threeDeep;
+}

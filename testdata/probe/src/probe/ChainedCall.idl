@@ -1,0 +1,47 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe for the chained-method-call dot rewrite.
+//
+// IDL bodies are written in Java syntax — `.` is used uniformly for
+// member access. On the C++ side any `.X` immediately after a `)`
+// becomes `->X` because pointer-returning methods are the common case
+// and the IDL author can't see C++ types. This is a textual rewrite,
+// applied whether or not the underlying type is actually a pointer.
+//
+// The JAR validates method existence, so we need real methods to chain
+// on. The probe declares its own self-returning method (`getSelf`) so
+// we can build deeper chains without depending on engine3 internals.
+// `getSelf` is `@local` to skip RPC-stub generation (which would
+// otherwise need an entry in `legacyRPCSeeds`).
+class ChainedCall extends ManagedObject {
+	private ChainedCall classField;
+
+	@local
+	public native ChainedCall getSelf();
+
+	@local
+	public void chainOnField() {
+		classField.getSelf().updateForWrite();
+	}
+
+	@local
+	public void chainOnThis() {
+		this.getSelf().updateForWrite();
+	}
+
+	@local
+	public void deepChain() {
+		classField.getSelf().getSelf().getSelf().updateForWrite();
+	}
+
+	@local
+	public void chainPreservedInString() {
+		classField.setLockName(").a) ).bar() literal");
+	}
+}

@@ -111,16 +111,24 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 		if f.Dereferenced {
 			return rendered
 		}
+		// Outer wrap appends `*` to take the inner's address — UNLESS the
+		// field's own head is already a smart-pointer (Reference<>,
+		// ManagedReference<>, ...). In that case the inner is already
+		// pointer-like and an extra `*` would over-indirect.
+		ptr := "* "
+		if isSmartPointerWrapper(cppHead(f.IDLType.Name)) {
+			ptr = " "
+		}
 		if reg.classifies(f.IDLType.Name) == idlManaged {
 			if f.WeakRef {
-				return "ManagedWeakReference<" + rendered + "* >"
+				return "ManagedWeakReference<" + rendered + ptr + ">"
 			}
-			return "ManagedReference<" + rendered + "* >"
+			return "ManagedReference<" + rendered + ptr + ">"
 		}
 		if f.WeakRef {
-			return "WeakReference<" + rendered + "* >"
+			return "WeakReference<" + rendered + ptr + ">"
 		}
-		return "Reference<" + rendered + "* >"
+		return "Reference<" + rendered + ptr + ">"
 	}
 	if IsPrimitive(f.IDLType.Name) {
 		return CppRender(f.IDLType)
@@ -189,12 +197,15 @@ func renderGenericInners(t parser.Type, reg *Registry) string {
 
 // renderGenericArg renders one argument of a generic type. The
 // `smartPtrOuter` flag tells the leaf logic which form to emit for
-// non-primitive args:
+// non-primitive args. Cases (verified against JAR emit):
 //
-//   - `Reference<NonManagedClass>`     → `Reference<NonManagedClass*>`        (bare `*`)
+//   - `Reference<ManagedClass>`        → `Reference<ManagedReference<ManagedClass*>>`
+//   - `Reference<NonManagedClass>`     → `Reference<NonManagedClass*>`         (bare `*`)
+//   - `Vector<ManagedClass>`           → `Vector<ManagedReference<ManagedClass*>>`
 //   - `Vector<NonManagedClass>`        → `Vector<Reference<NonManagedClass*>>` (Reference-wrap)
-//   - `Reference<Vector<X>>`           → `Reference<Vector<X>*>`              (`*` after nested `>`)
-//   - `Vector<Reference<X>>`           → `Vector<Reference<X*>>`              (recurse, no extra wrap)
+//   - `Reference<Vector<X>>`           → `Reference<Vector<X>*>`               (`*` after container nested)
+//   - `Reference<Reference<X>>`        → `Reference<Reference<X> >`            (NO `*` — nested smart-ptr already pointer-like)
+//   - `Vector<Reference<X>>`           → `Vector<Reference<X*>>`               (recurse, no outer wrap on the arg)
 func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 	a = strings.TrimSpace(a)
 	if IsPrimitive(a) {
@@ -205,12 +216,22 @@ func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		inner := a[open+1 : len(a)-1]
 		nested := parser.Type{Name: innerName, Generics: inner}
 		rendered := renderGenericInners(nested, reg)
-		if smartPtrOuter {
+		if smartPtrOuter && !isSmartPointerWrapper(cppHead(innerName)) {
+			// Smart-pointer holding a container: container is value-typed,
+			// so add `*` to take its address. Nested smart-ptr inside
+			// smart-ptr is already pointer-like — no extra `*`.
 			return rendered + "*"
 		}
 		return rendered
 	}
 	if smartPtrOuter {
+		// Inside Reference<>/ManagedReference<>: managed leaf wraps as
+		// `ManagedReference<X*>` (NOT bare `X*` — the JAR insists on the
+		// nested wrap so the outer smart-pointer stores a managed
+		// pointer-pointer chain). Non-managed leaf stays bare.
+		if reg.classifies(a) == idlManaged {
+			return "ManagedReference<" + cppHead(a) + "* >"
+		}
 		return cppHead(a) + "*"
 	}
 	if reg.classifies(a) == idlManaged {
@@ -286,16 +307,22 @@ func CppRenderPODFieldType(f Field, reg *Registry) string {
 		if f.Dereferenced {
 			return rendered
 		}
+		ptr := "* "
+		podSuffix := "POD"
+		if isSmartPointerWrapper(cppHead(f.IDLType.Name)) {
+			ptr = " "
+			podSuffix = ""
+		}
 		if reg.classifies(f.IDLType.Name) == idlManaged {
 			if f.WeakRef {
-				return "ManagedWeakReference<" + rendered + "POD* >"
+				return "ManagedWeakReference<" + rendered + podSuffix + ptr + ">"
 			}
-			return "ManagedReference<" + rendered + "POD* >"
+			return "ManagedReference<" + rendered + podSuffix + ptr + ">"
 		}
 		if f.WeakRef {
-			return "WeakReference<" + rendered + "* >"
+			return "WeakReference<" + rendered + ptr + ">"
 		}
-		return "Reference<" + rendered + "* >"
+		return "Reference<" + rendered + ptr + ">"
 	}
 	if IsPrimitive(f.IDLType.Name) {
 		return CppRender(f.IDLType)
@@ -350,16 +377,14 @@ func renderPODGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		inner := a[open+1 : len(a)-1]
 		nested := parser.Type{Name: innerName, Generics: inner}
 		rendered := renderPODGenericInners(nested, reg)
-		if smartPtrOuter {
+		if smartPtrOuter && !isSmartPointerWrapper(cppHead(innerName)) {
 			return rendered + "*"
 		}
 		return rendered
 	}
 	if smartPtrOuter {
-		// Leaf class inside Reference<>/ManagedReference<>/...: managed
-		// gets the POD-class suffix, others stay bare.
 		if reg.classifies(a) == idlManaged {
-			return cppHead(a) + "POD*"
+			return "ManagedReference<" + cppHead(a) + "POD* >"
 		}
 		return cppHead(a) + "*"
 	}

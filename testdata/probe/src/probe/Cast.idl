@@ -1,0 +1,39 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe for the C-style-cast → dynamic_cast rewrite.
+//
+// IDL bodies use Java-style downcasts: `(ClassName) value`. On the C++
+// side these become `dynamic_cast<ClassName*>(value)` for managed and
+// noPOD class targets. Engine3 utility types and primitives are not
+// rewritten.
+class Cast extends ManagedObject {
+	private ManagedObject classField;
+
+	@local
+	public void castInAssignment(ManagedObject obj) {
+		ManagedObject target = (ManagedObject) obj;
+		target.updateForWrite();
+	}
+
+	@local
+	public void castAsArg(ManagedObject obj) {
+		classField.lock((ManagedObject) obj);
+	}
+
+	@local
+	public void castInComparison(ManagedObject obj, ManagedObject other) {
+		if ((ManagedObject) obj == other)
+			obj.lock();
+	}
+
+	@local
+	public void castNoSpace(ManagedObject obj) {
+		classField.lock((ManagedObject)obj);
+	}
+}
