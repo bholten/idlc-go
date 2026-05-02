@@ -38,10 +38,24 @@ type Registry struct {
 }
 
 // ClassMeta is per-class IDL metadata the registry tracks for chain
-// walks (parent lookups, transitive finalize, etc.).
+// walks (parent lookups, transitive finalize, body-rewriter resolution
+// of inherited field annotations, etc.).
 type ClassMeta struct {
 	Parent           string // unqualified parent name; "" for root classes
 	DeclaresFinalize bool
+	Fields           []ClassMetaField
+}
+
+// ClassMetaField records the parts of a field declaration the body
+// rewriter needs when resolving `super.field.X` or bare `field.X` to
+// the right C++ unwrap form. We deliberately don't store the full
+// `Field` here — only the bits that change body emit. Annotations on
+// parent fields don't propagate to subclasses but the rewriter uses
+// them when chasing inherited names.
+type ClassMetaField struct {
+	Name         string
+	WeakRef      bool // @weakReference  → ManagedWeakReference<T*>; body needs `.getForUpdate().get()->`
+	Dereferenced bool // @dereferenced   → by-value; body uses `(&field)->` for member access
 }
 
 func NewRegistry() *Registry {
@@ -226,14 +240,53 @@ func (r *Registry) LoadFromDir(dir string) error {
 
 		meta := ClassMeta{Parent: f.Class.Base}
 		for _, mem := range f.Class.Members {
-			if meth, ok := mem.(*parser.Method); ok && meth.Name == "finalize" {
-				meta.DeclaresFinalize = true
-				break
+			switch v := mem.(type) {
+			case *parser.Method:
+				if v.Name == "finalize" {
+					meta.DeclaresFinalize = true
+				}
+			case *parser.Field:
+				meta.Fields = append(meta.Fields, ClassMetaField{
+					Name:         v.Name,
+					WeakRef:      hasAnnotation(v.Annotations, "weakReference"),
+					Dereferenced: hasAnnotation(v.Annotations, "dereferenced"),
+				})
 			}
 		}
 		r.classMeta[f.Class.Name] = meta
 		return nil
 	})
+}
+
+// LookupInheritedField walks the parent chain starting at `startClass`
+// (typically the immediate parent's unqualified name) and returns the
+// first field matching `name`. Stops walking when the chain reaches a
+// class the registry doesn't know — e.g. `ManagedObject` if engine3
+// wasn't scanned, which is fine because engine3 root classes don't
+// declare the kinds of `@weakReference` / `@dereferenced` fields we
+// care about for body rewrite.
+func (r *Registry) LookupInheritedField(startClass, name string) (ClassMetaField, bool) {
+	if r == nil {
+		return ClassMetaField{}, false
+	}
+	visited := map[string]bool{}
+	for cur := startClass; cur != ""; {
+		if visited[cur] {
+			return ClassMetaField{}, false
+		}
+		visited[cur] = true
+		meta, ok := r.classMeta[cur]
+		if !ok {
+			return ClassMetaField{}, false
+		}
+		for _, fld := range meta.Fields {
+			if fld.Name == name {
+				return fld, true
+			}
+		}
+		cur = meta.Parent
+	}
+	return ClassMetaField{}, false
 }
 
 // HasTransitiveFinalize reports whether the named class — or any

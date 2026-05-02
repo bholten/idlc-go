@@ -1161,7 +1161,8 @@ type bodyCtx struct {
 	classNames      []string       // class-typed identifiers (fields + params + locals) — get .X → ->X
 	importedClasses []string       // unqualified imported class names — get .X → ::X
 	superImpl       string         // BaseImpl name for `super.method` → `BaseImpl::method` rewrite
-	registry        *sema.Registry // optional; used to classify local-var class types
+	superClass      string         // unqualified parent class name; entry point for inherited-field lookups
+	registry        *sema.Registry // optional; used to classify local-var class types and walk inheritance
 }
 
 // makeBodyCtx builds the rewrite context for a method (or ctor) body.
@@ -1175,6 +1176,7 @@ func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 	ctx := bodyCtx{dereferencedFields: c.DereferencedFieldNames, registry: m.Registry}
 	if !c.IsRoot() {
 		ctx.superImpl = c.ImplBase()
+		ctx.superClass = c.Base
 	}
 
 	for _, f := range c.Fields {
@@ -1474,15 +1476,31 @@ func rewriteBodyLine(line string, ctx bodyCtx) string {
 // rewriteCodeSegment applies the JAR's identifier rewrites to a stretch
 // of code text — i.e. text not inside a string literal. Caller is
 // responsible for splitting the input around `"..."` regions.
+//
+// Order matters because some rewrites synthesize text that other rewrites
+// would re-match. The phasing is:
+//
+//  1. Inert text rewrites that produce `).X` patterns we want chained-call
+//     to fix up: `rewriteNull`, `rewriteThis` (`this` → `_this.getReferenceUnsafeStaticCast()`).
+//  2. `rewriteDereferenced` — produces `(&field)->X` we don't want re-rewritten.
+//  3. `rewriteChainedCallDot` — turns every `).X` into `)->X`. After this
+//     point, no rewrite should *introduce* a `).X` we want unchanged…
+//  4. …except `rewriteSuperDot`, which emits `.getForUpdate().get()->`
+//     for `@weakReference` parent fields. Running it AFTER chained-call
+//     means its emission survives untouched.
+//  5. `rewriteClassDot`, `rewriteImportedClassDot`: `name.X → name->X`
+//     and `Name.X → Name::X` for registered identifiers.
+//  6. `rewritePrimitiveTypes`: `string → String` etc.
+//  7. `rewriteCStyleCast`: `(Class) v → dynamic_cast<Class*>(v)`.
 func rewriteCodeSegment(seg string, ctx bodyCtx) string {
 	seg = rewriteNull(seg)
+	seg = rewriteThis(seg)
 	seg = rewriteDereferenced(seg, ctx.dereferencedFields, ctx.dereferencedClassFields)
+	seg = rewriteChainedCallDot(seg)
+	seg = rewriteSuperDot(seg, ctx)
 	seg = rewriteClassDot(seg, ctx.classNames)
 	seg = rewriteImportedClassDot(seg, ctx.importedClasses)
-	seg = rewriteSuperDot(seg, ctx.superImpl)
 	seg = rewritePrimitiveTypes(seg)
-	seg = rewriteThis(seg)
-	seg = rewriteChainedCallDot(seg)
 	seg = rewriteCStyleCast(seg, ctx.registry)
 
 	return seg
@@ -1557,34 +1575,58 @@ var bodyTypeRewrites = map[string]string{
 	"unicode": "UnicodeString",
 }
 
-// rewriteSuperDot replaces `super.X` → `BaseImpl::X` and the more
-// specific `super.field.method()` shape → `BaseImpl::field->method()`.
-// The IDL writes `super.method(args)` for parent-class method calls and
-// `super.field.method()` for chained access through a parent field; on
-// the impl side that becomes `<BaseClassImplementation>::method(args)`
-// and `<BaseClassImplementation>::field->method(args)` respectively.
-// The chained-field form catches the second `.` because parent fields
-// aren't in our local `classNames` set (we don't parse parent IDLs).
-// Only fires when the class has a base (not root).
-func rewriteSuperDot(line, baseImpl string) string {
-	if baseImpl == "" {
+// rewriteSuperDot replaces `super.X` and `super.field.X` references
+// with their C++ impl-side form. The prefix is the IMMEDIATE parent's
+// `*Implementation` class (`<DirectParent>Impl::`), but the unwrap form
+// for `super.field.X` depends on the field's annotation in whichever
+// ancestor declared it — so we walk the inheritance chain via the
+// registry's classMeta to find it.
+//
+// Cases (verified against JAR emit):
+//
+//	super.method(args)          → BaseImpl::method(args)
+//	super.field.method()        → BaseImpl::field->method()                       (plain / @dereferenced)
+//	super.weakRefField.method() → BaseImpl::field.getForUpdate().get()->method()  (@weakReference)
+//
+// `@dereferenced` parent fields use plain `->` because the corpus's
+// `@dereferenced` parent fields are typedefs over `Reference<X>` (e.g.
+// `CreatureTemplateReference`) — they already have `operator->`. The
+// `(&field)->` form is only correct for `@dereferenced` over a true
+// by-value type, which doesn't appear at parent level in the corpus.
+//
+// `LookupInheritedField` returns false when the field's declaring class
+// isn't in the registry (e.g. an engine3-side field we never scanned).
+// In that case we fall back to the plain-class form, which is the
+// most common case across the corpus.
+func rewriteSuperDot(line string, ctx bodyCtx) string {
+	if ctx.superImpl == "" {
 		return line
 	}
 
-	chainedKey := "super-chain:" + baseImpl
-	chainedRe, ok := identRewriters[chainedKey]
+	chainedRe, ok := identRewriters["super-chain"]
 	if !ok {
 		chainedRe = regexp.MustCompile(`\bsuper\.([A-Za-z_][A-Za-z0-9_]*)\.`)
-		identRewriters[chainedKey] = chainedRe
+		identRewriters["super-chain"] = chainedRe
 	}
-	line = chainedRe.ReplaceAllString(line, baseImpl+"::${1}->")
+	line = chainedRe.ReplaceAllStringFunc(line, func(match string) string {
+		m := chainedRe.FindStringSubmatch(match)
+		if m == nil {
+			return match
+		}
+		fieldName := m[1]
+		fld, found := ctx.registry.LookupInheritedField(ctx.superClass, fieldName)
+		if found && fld.WeakRef {
+			return ctx.superImpl + "::" + fieldName + ".getForUpdate().get()->"
+		}
+		return ctx.superImpl + "::" + fieldName + "->"
+	})
 
-	re, ok := identRewriters["super:"+baseImpl]
+	re, ok := identRewriters["super:"+ctx.superImpl]
 	if !ok {
 		re = regexp.MustCompile(`\bsuper\.`)
-		identRewriters["super:"+baseImpl] = re
+		identRewriters["super:"+ctx.superImpl] = re
 	}
-	return re.ReplaceAllString(line, baseImpl+"::")
+	return re.ReplaceAllString(line, ctx.superImpl+"::")
 }
 
 // rewriteThis replaces every word-boundary `this` with the JAR's impl-
