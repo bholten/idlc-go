@@ -75,6 +75,7 @@ func buildProbeRegistry(t *testing.T, root string) *sema.Registry {
 		"probe.Cast",
 		"probe.ChainedCall",
 		"probe.Constants",
+		"probe.DerefManaged",
 		"probe.Dispatch",
 		"probe.Fields",
 		"probe.Generics",

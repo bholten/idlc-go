@@ -1,0 +1,42 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package probe;
+
+import engine.core.ManagedObject;
+
+// Probe for `@dereferenced` on a managed-class field — a hypothetical
+// case that Core3 itself doesn't use (every @dereferenced field in
+// Core3 is a non-IDL utility type), but custom forks might.
+//
+// Field rendering rule (from existing types.go):
+//   `@dereferenced` + IDL-managed → `ManagedReference<X >` (no `*`)
+//
+// Body access rule — what does the JAR emit for `field.method()`?
+// `ManagedReference<X>` (by-value, no `*`) has its own `operator->`,
+// so `field->method()` should work directly without an `&` coerce.
+// This probe surfaces the JAR's actual choice.
+class DerefManaged extends ManagedObject {
+	@dereferenced
+	private ManagedObject derefManagedField;
+
+	@local
+	public void methodAccess() {
+		// Body call on a `@dereferenced` managed field. JAR emit?
+		derefManagedField.updateForWrite();
+	}
+
+	@local
+	public void chainedAccess() {
+		// Two-step chain through the field.
+		derefManagedField.lock();
+		derefManagedField.unlock();
+	}
+
+	@local
+	public void assignmentNull() {
+		// Plain assignment — should not unwrap.
+		derefManagedField = null;
+	}
+}
