@@ -72,7 +72,15 @@ func returnDeclForMethod(m sema.Method, reg *sema.Registry) string {
 		if m.IsFinal {
 			inner = "const " + inner
 		}
-		return "ManagedWeakReference<" + inner + "* >"
+		// Same managed-vs-non-managed split as `CppRenderFieldType`'s
+		// `@weakReference` branch: managed → `ManagedWeakReference<X*>`,
+		// non-managed → plain `WeakReference<X*>`. Mismatching the two
+		// breaks `return weakField;` because the field type and method
+		// return type must agree.
+		if reg != nil && reg.IsManagedShortName(m.Return.Name) {
+			return "ManagedWeakReference<" + inner + "* >"
+		}
+		return "WeakReference<" + inner + "* >"
 	case m.IsDereferenced && m.Return.Name != "void":
 		return maybeConst(m.IsFinal, sema.CppRenderMethodType(m.Return, reg))
 	}

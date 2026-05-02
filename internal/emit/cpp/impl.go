@@ -1056,7 +1056,10 @@ func emitIfElseLine(w io.Writer, m *sema.Model, ctx bodyCtx, lines []string, i i
 	}
 }
 
-var superCallRe = regexp.MustCompile(`^super\s*\(([^)]*)\)\s*;\s*$`)
+// Greedy `.*` so nested parens in the args work — `super("X" +
+// planet.getZoneName())` and `super(creo, Long.hashCode(buffState), ...)`
+// both have inner `()` that the prior `[^)]*` form choked on.
+var superCallRe = regexp.MustCompile(`^super\s*\((.*)\)\s*;\s*$`)
 
 // extractSuperCall scans the raw IDL ctor body for a leading
 // `super(args);` call and removes that line. Returns the args (between
@@ -1323,7 +1326,11 @@ type syncEntry struct {
 // in the wild, this will need extending.
 func findSynchronizedBlocks(lines []string) map[int]syncEntry {
 	out := map[int]syncEntry{}
-	syncOpenRe := regexp.MustCompile(`^\s*synchronized\s*\(([^)]*)\)\s*\{\s*$`)
+	// Greedy `.*` so the outermost `)` (just before `{`) is the match
+	// end — this handles nested parens like
+	//   synchronized (super.getContainerLock()) { ... }
+	// which the prior `[^)]*` form couldn't match.
+	syncOpenRe := regexp.MustCompile(`^\s*synchronized\s*\((.*)\)\s*\{\s*$`)
 
 	for i, line := range lines {
 		m := syncOpenRe.FindStringSubmatch(line)

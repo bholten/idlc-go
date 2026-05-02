@@ -23,6 +23,7 @@ var idlToCpp = map[string]string{
 	"long":           "long long",
 	"unsigned long":  "unsigned long long",
 	"float":          "float",
+	"double":         "double",
 	"void":           "void",
 }
 
@@ -421,7 +422,7 @@ func IsPrimitive(idlName string) bool {
 	case "string", "unicode", "boolean", "byte", "unsigned byte",
 		"short", "unsigned short",
 		"int", "unsigned int", "long", "unsigned long",
-		"float", "void":
+		"float", "double", "void":
 		return true
 	}
 	return false
@@ -431,9 +432,15 @@ func IsPrimitive(idlName string) bool {
 // type as `T*` rather than bare `T` in the generated C++. The rule we've
 // observed: any non-primitive (i.e. user class or generic container)
 // becomes a pointer return. String/UnicodeString stay by value.
+//
+// Smart-pointer wrappers (Reference<>, ManagedReference<>, etc.) are
+// returned by value — they already manage a pointer internally, and
+// adding another `*` would create a pointer-to-Reference which doesn't
+// match the body's `gcwStartTasks.get(id)`-style expressions that
+// return the Reference value directly.
 func IsPointerReturn(t parser.Type) bool {
 	if t.Generics != "" {
-		return true
+		return !isSmartPointerWrapper(cppHead(t.Name))
 	}
 	return !IsPrimitive(t.Name)
 }
