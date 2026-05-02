@@ -116,6 +116,7 @@ type Field struct {
 	Vis       parser.Visibility
 
 	Transient    bool
+	Final        bool // `final` modifier — non-managed class fields render as `Reference<const T*>` (read-only after construction).
 	Dereferenced bool
 	WeakRef      bool
 	RawTemplate  string // @rawTemplate(value="...") inner — pasted into Type<inner > (no trailing `*`).

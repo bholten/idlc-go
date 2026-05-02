@@ -147,6 +147,12 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 	if idlManagedHead {
 		return "ManagedReference<" + head + "* >"
 	}
+	// `final` on a non-managed class field renders the inner as
+	// `const X*` so the wrapper enforces "no reassignment after
+	// construction" — matches the IDL's `final` semantics.
+	if f.Final {
+		return "Reference<const " + head + "* >"
+	}
 	return "Reference<" + head + "* >"
 }
 
