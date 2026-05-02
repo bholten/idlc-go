@@ -136,6 +136,13 @@ func paramDecl(p sema.Param, reg *sema.Registry) string {
 	}
 
 	if !sema.IsPrimitive(p.IDLType.Name) {
+		// Smart-pointer-headed params (`Reference<X>`, `ManagedReference<X>`,
+		// ...) are passed by value — they already wrap a pointer, so an
+		// extra `*` would be `Reference<X>*`, breaking VectorMap.put / etc.
+		// which expect `const Reference<X>&`.
+		if p.IDLType.Generics != "" && sema.IsSmartPointerWrapper(p.IDLType.Name) {
+			return constPrefix + rendered + " " + p.Name
+		}
 		return constPrefix + rendered + "* " + p.Name
 	}
 

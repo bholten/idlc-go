@@ -235,10 +235,16 @@ func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		}
 		return cppHead(a) + "*"
 	}
+	// Container outer (Vector / VectorMap / SortedVector / etc.) with a
+	// flat class arg: managed leaf gets the `ManagedReference<X*>` wrap
+	// (so the container holds a managed reference); non-managed leaf is
+	// just bare `X*` — the JAR doesn't wrap non-managed classes when
+	// they're explicit args of a container, only when the IDL author
+	// already writes `Reference<X>` in the IDL.
 	if reg.classifies(a) == idlManaged {
 		return "ManagedReference<" + cppHead(a) + "* >"
 	}
-	return "Reference<" + cppHead(a) + "* >"
+	return cppHead(a) + "*"
 }
 
 // isSmartPointerWrapper reports whether `head` names an engine3
@@ -250,6 +256,13 @@ func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 // re-wrapped `Reference<Reference<X*>>`.
 func isSmartPointerWrapper(head string) bool {
 	return strings.HasSuffix(head, "Reference")
+}
+
+// IsSmartPointerWrapper is the exported variant — the emit-side
+// callers (paramDecl, returnDecl) need to ask this question for IDL
+// type names without going through the registry.
+func IsSmartPointerWrapper(head string) bool {
+	return isSmartPointerWrapper(head)
 }
 
 // splitGenericArgs splits a generic-args string by top-level commas,
@@ -392,7 +405,7 @@ func renderPODGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 	if reg.classifies(a) == idlManaged {
 		return "ManagedReference<" + cppHead(a) + "POD* >"
 	}
-	return "Reference<" + cppHead(a) + "* >"
+	return cppHead(a) + "*"
 }
 
 func cppHead(idlName string) string {
