@@ -39,6 +39,13 @@ fi
 # <src-tree> is e3 (engine3) or c3 (Core3).
 CORPUS=(
 	"e3:engine/core:ManagedObject"
+	"e3:engine/core:ManagedService"
+	"e3:engine/core/util:ManagedVector"
+	"e3:engine/util:Facade"
+	"e3:engine/util:Observable"
+	"e3:engine/util:Observer"
+	"e3:testsuite3/tests:TestIDLClass"
+	"e3:testsuite3/tests:TestNoOrbClass"
 	"c3:server/chat:ChatMessage"
 	"c3:server/chat:PendingMessageList"
 	"c3:server/chat:PersistentMessage"

@@ -56,12 +56,21 @@ func returnDecl(t parser.Type, reg *sema.Registry) string {
 // `Reference<const ManagedObject* >` (not `const Reference<...>`),
 // surfaced by the Returns probe.
 func returnDeclForMethod(m sema.Method, reg *sema.Registry) string {
-	// @rawTemplate on a method: opaque-paste — `Head<inner >*`. The
-	// pointer is always there (return-as-pointer rule), and other
-	// wrap annotations are ignored on this path.
+	// @rawTemplate on a method: opaque-paste — `Head<inner >*` by
+	// default. `@dereferenced` suppresses the trailing pointer so the
+	// return is by-value (`Head<inner >` without trailing `*`); used
+	// for hand-written-backed methods like CreditObject's
+	// `@dereferenced @rawTemplate('CreatureObject*') WeakReference
+	// getOwner()`, whose hand-written .cpp returns the WeakReference
+	// by value.
 	if m.RawTemplate != "" {
 		rendered := m.Return.Name + "<" + m.RawTemplate + " >"
-		return maybeConst(m.IsFinal, rendered+"*")
+
+		if !m.IsDereferenced {
+			rendered += "*"
+		}
+
+		return maybeConst(m.IsFinal, rendered)
 	}
 
 	switch {

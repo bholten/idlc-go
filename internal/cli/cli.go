@@ -7,13 +7,25 @@
 //     idlc-go dump-ast <file.idl>
 //     idlc-go hash <ClassName.fieldName>
 //
-//  2. JAR-compat style — drop-in for Core3's CMake invocation:
+//  2. JAR-compat style — drop-in for both invocation patterns the JAR
+//     understands:
+//
+//     a. Per-file (Core3's CMake): one .idl path + `-outdir`,
+//     output goes to `<sd>/<outdir>/<pkg>/<Class>.{h,cpp}`.
 //     idlc-go -outdir autogen -cp <engine3> -silence -rbcpp \
 //     -sd <src> <pkg/Class.idl>
 //
+//     b. Directory-walk (engine3's CMake): magic positional sentinel
+//     (`anyadEclipse` is the JAR's hardcoded marker — any non-IDL
+//     positional triggers walk mode here). With `-outdir` set,
+//     output is `<sd>/<outdir>/<pkg>/`; without `-outdir`, output
+//     lands alongside source at `<sd>/<pkg>/`, matching the JAR's
+//     behavior for engine3's checked-in autogen tree.
+//     idlc-go [-rb] -sd <src> anyadEclipse
+//
 // Detection: if the first arg starts with `-`, it's JAR-compat;
-// otherwise it's a subcommand. This matches how Core3's CMake will
-// substitute idlc-go for `java -cp idlc.jar org.sr.idlc.compiler.Compiler`.
+// otherwise it's a subcommand. This matches how Core3's and engine3's
+// CMake substitute idlc-go for `java -cp idlc.jar org.sr.idlc.compiler.Compiler`.
 package cli
 
 import (
@@ -24,6 +36,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bholten/tools/idlc-go/internal/emit/cpp"
@@ -64,6 +77,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 func printUsage(w io.Writer) {
 	fmt.Fprint(w, `usage: idlc-go <command> [args]
        idlc-go -outdir <dir> -cp <engine3> [-silence] [-rbcpp] -sd <src> <pkg/Class.idl>
+       idlc-go [-rb] [-outdir <dir>] -sd <src> anyadEclipse
 
 subcommands:
   compile [-od dir] <file.idl>   generate C++ from one IDL file
@@ -72,13 +86,20 @@ subcommands:
   help                           show this message
 
 JAR-compat mode (when first arg starts with '-'):
-  -outdir <dir> / -od <dir>      output dir (resolved relative to -sd)
+  -outdir <dir> / -od <dir>      output dir (resolved relative to -sd);
+                                 if absent, outputs land alongside source
   -cp <dir>                      classpath (engine3 source dir)
   -sd <dir>                      source dir (root for the IDL arg)
   -silence                       suppress info output
   -rbcpp                         rebuild C++ mode (default; only mode)
+  -rb                            rebuild marker (engine3 dir-walk variant); no-op
   -noprelocks                    disable @preLocked asserts (NOT YET HONORED)
   -nomocks                       disable @mock class generation (NOT YET HONORED)
+
+Positional arg:
+  <pkg/Class.idl>                per-file mode: compile one IDL
+  anyadEclipse (or any non-.idl) directory-walk mode: compile every
+                                 .idl found under -sd
 `)
 }
 
@@ -183,14 +204,22 @@ func runHash(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// runJARCompat handles the JAR-style invocation Core3's CMake uses:
+// runJARCompat handles both JAR-style invocations:
 //
-//	idlc-go -outdir <dir> -cp <engine3> -silence -rbcpp \
-//	        -sd <src> <pkg/Class.idl>
+//  1. Per-file (Core3): exactly one positional .idl arg. Requires
+//     -outdir. Output goes to <sd>/<outdir>/<pkg>/<Class>.{h,cpp}.
 //
-// Output goes to <sd>/<outdir>/<pkg>/<Class>.{h,cpp} — `-outdir` is
-// resolved RELATIVE to `-sd`, matching the JAR's quirky path handling
-// (and matching what Core3's CMake `IDL_DIRECTIVES` produces).
+//  2. Directory-walk (engine3): one positional sentinel arg that does
+//     NOT end in .idl (the JAR uses `anyadEclipse` — we accept any
+//     non-.idl token to be tolerant of fork variations). Walks every
+//     .idl under -sd and compiles each. With -outdir, output goes to
+//     <sd>/<outdir>/<pkg>/...; without, output lands alongside the
+//     .idl at <sd>/<pkg>/ (engine3's checked-in autogen layout).
+//
+// `-rbcpp` and `-rb` are parsed but ignored — they're rebuild markers
+// and we don't track output timestamps anyway. `-noprelocks` and
+// `-nomocks` are recognised; `-nomocks` is honored, `-noprelocks` is
+// not yet.
 //
 // The registry is populated by scanning every `.idl` under `-sd` and
 // `-cp` (engine3 source). This is a coarse approximation: every IDL
@@ -199,11 +228,6 @@ func runHash(args []string, stdout, stderr io.Writer) int {
 // outputs for non-managed-parent IDLs (like Observable subclasses);
 // extending the registry to compute the inheritance chain is on the
 // follow-up list once we attempt the splice and see what diverges.
-//
-// `-rbcpp` is parsed but ignored (it's just a mode marker).
-// `-noprelocks` and `-nomocks` are recognised but emit a warning to
-// stderr — production builds with the defaults (asserts on, mocks on),
-// which is what we already produce.
 func runJARCompat(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("idlc-go (jar-compat)", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -215,24 +239,26 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 		sd         string
 		silence    bool
 		rbcpp      bool
+		rb         bool
 		noPreLocks bool
 		noMocks    bool
 	)
 
-	fs.StringVar(&outdir, "outdir", "", "output dir (relative to -sd)")
+	fs.StringVar(&outdir, "outdir", "", "output dir (relative to -sd); empty = alongside source")
 	fs.StringVar(&odAlias, "od", "", "alias for -outdir")
 	fs.StringVar(&cp, "cp", "", "classpath (engine3 source dir)")
 	fs.StringVar(&sd, "sd", "", "source dir (root for the IDL arg)")
 	fs.BoolVar(&silence, "silence", false, "suppress info output")
 	fs.BoolVar(&rbcpp, "rbcpp", false, "rebuild C++ mode (default + only mode)")
+	fs.BoolVar(&rb, "rb", false, "rebuild marker (engine3 dir-walk variant); no-op")
 	fs.BoolVar(&noPreLocks, "noprelocks", false, "disable @preLocked asserts (NOT YET HONORED)")
-	fs.BoolVar(&noMocks, "nomocks", false, "disable @mock class generation (NOT YET HONORED)")
+	fs.BoolVar(&noMocks, "nomocks", false, "disable @mock class generation")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
-	_ = rbcpp
+	_, _ = rbcpp, rb
 
 	if outdir == "" {
 		outdir = odAlias
@@ -243,13 +269,8 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	if outdir == "" {
-		fmt.Fprintln(stderr, "idlc-go: -outdir (or -od) is required in JAR-compat mode")
-		return 2
-	}
-
 	if fs.NArg() != 1 {
-		fmt.Fprintln(stderr, "idlc-go: expected exactly one IDL path argument")
+		fmt.Fprintln(stderr, "idlc-go: expected exactly one positional argument (an .idl path or directory-walk sentinel)")
 		return 2
 	}
 
@@ -257,47 +278,135 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "idlc-go: -noprelocks recognised but not yet honored — output may differ from JAR")
 	}
 
-	idlRel := fs.Arg(0)
-	idlPath := filepath.Join(sd, idlRel)
+	reg, regErr := buildRegistry(sd, cp)
+	if regErr != nil {
+		fmt.Fprintf(stderr, "idlc-go: %v\n", regErr)
+		return 1
+	}
 
+	positional := fs.Arg(0)
+
+	if strings.HasSuffix(positional, ".idl") {
+		// Per-file mode (Core3 invocation pattern).
+		if outdir == "" {
+			fmt.Fprintln(stderr, "idlc-go: -outdir (or -od) is required when compiling a single .idl in JAR-compat mode")
+			return 2
+		}
+
+		return compileOne(positional, sd, outdir, reg, noMocks, silence, stdout, stderr)
+	}
+
+	// Directory-walk mode (engine3 invocation pattern). Positional is
+	// a sentinel token (`anyadEclipse` from the JAR, but we accept
+	// anything that doesn't look like an .idl path).
+	idlPaths, err := walkIDLs(sd)
+
+	if err != nil {
+		fmt.Fprintf(stderr, "idlc-go: walk %s: %v\n", sd, err)
+		return 1
+	}
+
+	if len(idlPaths) == 0 {
+		if !silence {
+			fmt.Fprintf(stderr, "idlc-go: no .idl files found under %s\n", sd)
+		}
+
+		return 0
+	}
+
+	for _, idlRel := range idlPaths {
+		if rc := compileOne(idlRel, sd, outdir, reg, noMocks, silence, stdout, stderr); rc != 0 {
+			return rc
+		}
+	}
+
+	return 0
+}
+
+// buildRegistry scans `-sd` and (optionally) `-cp` to populate the
+// IDL/header registry that the emitter consults to choose between
+// `ManagedReference<T*>`, `Reference<T*>`, and bare `T*`.
+//
+// Scan order:
+//   - IDLs from -sd, then -cp: classes registered as managed.
+//   - Headers from -sd: registered as `AddNoPOD` (forward-decl, no POD).
+//   - Headers from -cp: registered in the `externalHeaders` bucket
+//     (the body rewriter consults this so `Logger.X → Logger::X` works
+//     for engine3 utilities the IDL author didn't explicitly import).
+func buildRegistry(sd, cp string) (*sema.Registry, error) {
 	reg := sema.NewRegistry()
 
-	// IDLs first, so they win over same-named .h files. Headers second
-	// to register C++ utility classes (`Vector.h`, `Reference.h`, etc.)
-	// as `AddNoPOD` — the JAR uses this lookup to resolve
-	// `import system.util.Vector;` against the .h file.
+	// IDLs first, so they win over same-named .h files.
 	if err := reg.LoadFromDir(sd); err != nil {
-		fmt.Fprintf(stderr, "idlc-go: scan %s: %v\n", sd, err)
-		return 1
+		return nil, fmt.Errorf("scan %s: %w", sd, err)
 	}
 
 	if cp != "" {
 		if err := reg.LoadFromDir(cp); err != nil {
-			fmt.Fprintf(stderr, "idlc-go: scan %s: %v\n", cp, err)
-			return 1
+			return nil, fmt.Errorf("scan %s: %w", cp, err)
 		}
 	}
-	// Only -sd headers register as `AddNoPOD` (forward-decl without
-	// POD, Reference-wrapped). -cp headers go into the separate
-	// `externalHeaders` bucket — they don't forward-decl, but the body
-	// rewriter consults them so `Logger.X → Logger::X` works for
-	// engine3 utilities the IDL author didn't explicitly import.
+
 	if err := reg.LoadHeadersFromDir(sd); err != nil {
-		fmt.Fprintf(stderr, "idlc-go: scan headers %s: %v\n", sd, err)
-		return 1
+		return nil, fmt.Errorf("scan headers %s: %w", sd, err)
 	}
 
 	if cp != "" {
 		if err := reg.LoadExternalHeadersFromDir(cp); err != nil {
-			fmt.Fprintf(stderr, "idlc-go: scan external headers %s: %v\n", cp, err)
-			return 1
+			return nil, fmt.Errorf("scan external headers %s: %w", cp, err)
 		}
 	}
+
+	return reg, nil
+}
+
+// walkIDLs returns every .idl under sd as a slice of paths relative
+// to sd. Sorted for stable output ordering.
+func walkIDLs(sd string) ([]string, error) {
+	var out []string
+
+	err := filepath.WalkDir(sd, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(p, ".idl") {
+			return nil
+		}
+
+		rel, err := filepath.Rel(sd, p)
+
+		if err != nil {
+			return err
+		}
+
+		out = append(out, filepath.ToSlash(rel))
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(out)
+
+	return out, nil
+}
+
+// compileOne resolves and emits one IDL. `idlRel` is relative to sd;
+// `outdir` is relative to sd (or "" to write alongside the .idl).
+func compileOne(idlRel, sd, outdir string, reg *sema.Registry, noMocks, silence bool, stdout, stderr io.Writer) int {
+	idlPath := filepath.Join(sd, idlRel)
 
 	m, err := loadAndResolve(idlPath)
 
 	if err != nil {
-		fmt.Fprintf(stderr, "idlc-go: %v\n", err)
+		fmt.Fprintf(stderr, "idlc-go: %s: %v\n", idlRel, err)
 		return 1
 	}
 
@@ -317,7 +426,7 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 	// ZoneManager.idl` declares `package server.zone.manager` — JAR
 	// uses the file path for output, package only for the C++
 	// namespace).
-	pkgDir := path.Dir(idlRel)
+	pkgDir := path.Dir(filepath.ToSlash(idlRel))
 
 	if pkgDir == "." {
 		pkgDir = ""
@@ -326,21 +435,30 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 	m.HeaderPath = path.Join(pkgDir, m.Class.Name+".h")
 	m.SourcePath = path.Join(pkgDir, m.Class.Name+".cpp")
 
-	// JAR embeds the literal `-outdir` value into every file-header
-	// comment; thread it through so we match.
-	m.OutdirPrefix = outdir
+	if outdir == "" {
+		// engine3 layout: emit alongside source, file-header comment
+		// has no `<outdir>/` prefix.
+		m.NoOutdirPrefix = true
+	} else {
+		// Per-file / Core3 layout: the JAR embeds the literal `-outdir`
+		// value in the file-header comment; thread it through.
+		m.OutdirPrefix = outdir
+	}
 
 	headerBytes, sourceBytes, err := cpp.Generate(m, reg)
 
 	if err != nil {
-		fmt.Fprintf(stderr, "idlc-go: emit: %v\n", err)
+		fmt.Fprintf(stderr, "idlc-go: emit %s: %v\n", idlRel, err)
 		return 1
 	}
 
-	// JAR quirk: -outdir is resolved relative to -sd. So actual output
-	// root is <sd>/<outdir>. Every generated file lands under there in
-	// its package subdirectory.
-	outRoot := filepath.Join(sd, outdir)
+	// outdir, when set, is resolved RELATIVE to sd. When empty,
+	// outputs land alongside source (sd directly).
+	outRoot := sd
+	if outdir != "" {
+		outRoot = filepath.Join(sd, outdir)
+	}
+
 	outPkgDir := filepath.Join(outRoot, filepath.Dir(m.HeaderPath))
 
 	if err := os.MkdirAll(outPkgDir, 0o755); err != nil {
@@ -359,7 +477,11 @@ func runJARCompat(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if !silence {
-		fmt.Fprintf(stdout, "wrote %s/%s\n", outdir, m.HeaderPath)
+		if outdir == "" {
+			fmt.Fprintf(stdout, "wrote %s\n", m.HeaderPath)
+		} else {
+			fmt.Fprintf(stdout, "wrote %s/%s\n", outdir, m.HeaderPath)
+		}
 	}
 
 	return 0

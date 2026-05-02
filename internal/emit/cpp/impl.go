@@ -223,7 +223,12 @@ func emitImplFields(w io.Writer, m *sema.Model) {
 
 		emittedAny = true
 
-		fmt.Fprintf(w, "\t%s %s;\n\n", sema.CppRenderFieldType(f, m.Registry), f.Name)
+		prefix := ""
+		if f.Static {
+			prefix = "static "
+		}
+
+		fmt.Fprintf(w, "\t%s%s %s;\n\n", prefix, sema.CppRenderFieldType(f, m.Registry), f.Name)
 	}
 }
 

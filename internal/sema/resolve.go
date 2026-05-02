@@ -104,6 +104,7 @@ func lowerField(className string, f *parser.Field) Field {
 		Hash:         hash.NameHash(hashInput),
 		Vis:          f.Visibility,
 		Transient:    f.Transient,
+		Static:       f.Static && !isConst,
 		Final:        f.Final,
 		Dereferenced: hasAnnotation(f.Annotations, "dereferenced"),
 		WeakRef:      hasAnnotation(f.Annotations, "weakReference"),

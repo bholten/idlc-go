@@ -5,9 +5,13 @@
 *~
 
 # Build artifacts
-*.got              # mismatched test output dumped next to expected files
+# *.got — mismatched test output dumped next to expected files
+*.got
 *.out
-/cmd/idlc/idlc     # built binary
+# /cmd/idlc/idlc — legacy idlc-go binary path
+/cmd/idlc/idlc
+# /idlc-go — built binary (used by USE_IDLC_GO splice into Core3/engine3)
+/idlc-go
 
 # Core3-derived assets — proprietary / can't redistribute. Populated by
 # `make fetch-corpus` (which copies from $CORE3_PATH into these paths).

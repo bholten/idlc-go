@@ -80,6 +80,34 @@ func TestGoldenSpaceZone(t *testing.T) {
 	runGolden(t, "SpaceZone", filepath.Join("server", "zone"))
 }
 
+func TestGoldenManagedService(t *testing.T) {
+	runGolden(t, "ManagedService", filepath.Join("engine", "core"))
+}
+
+func TestGoldenManagedVector(t *testing.T) {
+	runGolden(t, "ManagedVector", filepath.Join("engine", "core", "util"))
+}
+
+func TestGoldenFacade(t *testing.T) {
+	runGolden(t, "Facade", filepath.Join("engine", "util"))
+}
+
+func TestGoldenObservable(t *testing.T) {
+	runGolden(t, "Observable", filepath.Join("engine", "util"))
+}
+
+func TestGoldenObserver(t *testing.T) {
+	runGolden(t, "Observer", filepath.Join("engine", "util"))
+}
+
+func TestGoldenTestIDLClass(t *testing.T) {
+	runGolden(t, "TestIDLClass", filepath.Join("testsuite3", "tests"))
+}
+
+func TestGoldenTestNoOrbClass(t *testing.T) {
+	runGolden(t, "TestNoOrbClass", filepath.Join("testsuite3", "tests"))
+}
+
 func runGolden(t *testing.T, className, pkgDir string) {
 	t.Helper()
 	corpus.RequireOrSkip(t)
