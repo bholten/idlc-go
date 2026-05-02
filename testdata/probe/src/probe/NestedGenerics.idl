@@ -20,10 +20,16 @@ import system.lang.ref.Reference;
 //     IDL-managed, `Reference<X*>` for everything else); inner generic
 //     arg passes through unchanged.
 //
-// KNOWN GAP: The .cpp `TypeInfo<...>::parseFromBinaryStream` and
-// `toBinaryStream` for nested generic fields uses a different wrap
-// rule than the field-decl rendering. We currently match the field
-// declarations in the .h but NOT the TypeInfo lines in the .cpp.
+// Cases verified:
+//   - Vector<primitive>                            (no wrap)
+//   - Reference<ManagedClass>                      (smart-ptr leaf, managed → ManagedReference<X*>)
+//   - VectorMap<int, Reference<ManagedClass>>      (container holding smart-ptr; container value-typed)
+//   - Reference<Vector<int>>                       (smart-ptr holding container; trailing * after )
+//   - Reference<Vector<Reference<ManagedClass>>>   (3-deep — every smart-ptr level honored)
+//
+// The .h field decls AND the .cpp TypeInfo<...>::parse/toBinaryStream
+// lines both go through CppRenderFieldType, so a single rule covers
+// both renderings.
 class NestedGenerics extends ManagedObject {
 	@dereferenced
 	private Vector<unsigned long> primitiveVector;
