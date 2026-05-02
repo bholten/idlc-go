@@ -50,9 +50,12 @@ func TestParseCorpus(t *testing.T) {
 				t.Errorf("%s: empty package", e.Name())
 			}
 
-			// Sanity: every test IDL has at least one member.
-			if len(f.Class.Members) == 0 {
-				t.Errorf("%s: class %q has 0 members", e.Name(), f.Class.Name)
+			// Sanity: an extends-only class (e.g. ManagedService =
+			// `class ManagedService extends ManagedObject {}`) is a
+			// legitimate IDL — those have 0 members but a Base set.
+			// Anything else with 0 members is suspicious.
+			if len(f.Class.Members) == 0 && f.Class.Base == "" {
+				t.Errorf("%s: class %q has 0 members and no extends clause", e.Name(), f.Class.Name)
 			}
 		})
 	}
