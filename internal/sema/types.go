@@ -50,33 +50,19 @@ func CppRender(t parser.Type) string {
 // `ManagedReference<T* >` (with the smart-pointer trailing-space rule
 // triggering an outer ` >`); non-IDL inners render as bare `T*`.
 //
-//	Vector<BaseMessage>          → Vector<BaseMessage*>          (BaseMessage non-IDL)
+//	Vector<BaseMessage>          → Vector<BaseMessage*>           (BaseMessage non-IDL)
 //	SortedVector<TreeEntry>      → SortedVector<ManagedReference<TreeEntry* > >
+//	Vector<Reference<X>>         → Vector<Reference<X*> >         (smart-pointer arg recurses)
 //
-// Used by stub/impl/adapter param and return decl emission.
+// Used by stub/impl/adapter param and return decl emission. Delegates
+// to `renderGenericInners` so smart-pointer-headed args (Reference<X>,
+// ManagedReference<X>, …) recurse correctly — the prior shallow split
+// emitted `Vector<Reference<X>*>` instead of `Vector<Reference<X*> >`.
 func CppRenderMethodType(t parser.Type, reg *Registry) string {
-	head := cppHead(t.Name)
 	if t.Generics == "" {
-		return head
+		return cppHead(t.Name)
 	}
-	parts := strings.Split(t.Generics, ", ")
-	for i, p := range parts {
-		p = strings.TrimSpace(p)
-		if IsPrimitive(p) {
-			parts[i] = cppHead(p)
-			continue
-		}
-		if reg.classifies(p) == idlManaged {
-			parts[i] = "ManagedReference<" + cppHead(p) + "* >"
-			continue
-		}
-		parts[i] = cppHead(p) + "*"
-	}
-	joined := strings.Join(parts, ", ")
-	if strings.HasSuffix(joined, " >") {
-		return head + "<" + joined + " >"
-	}
-	return head + "<" + joined + ">"
+	return renderGenericInners(t, reg)
 }
 
 // CppRenderFieldType renders a field's C++ type, applying the JAR's
@@ -217,10 +203,15 @@ func renderGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		inner := a[open+1 : len(a)-1]
 		nested := parser.Type{Name: innerName, Generics: inner}
 		rendered := renderGenericInners(nested, reg)
-		if smartPtrOuter && !isSmartPointerWrapper(cppHead(innerName)) {
-			// Smart-pointer holding a container: container is value-typed,
-			// so add `*` to take its address. Nested smart-ptr inside
-			// smart-ptr is already pointer-like — no extra `*`.
+		nestedIsSmartPtr := isSmartPointerWrapper(cppHead(innerName))
+		// Append `*` to a value-typed nested generic — the JAR's rule:
+		//   `Reference<Vector<X>>`     → `Reference<Vector<X>*>`     (smart-ptr outer, container nested → *)
+		//   `Reference<Reference<X>>`  → `Reference<Reference<X> >`  (smart-ptr outer, smart-ptr nested → no *)
+		//   `Vector<Vector<X>>`        → `Vector<Vector<X>*>`        (container outer, container nested → *)
+		//   `Vector<Reference<X>>`     → `Vector<Reference<X> >`     (container outer, smart-ptr nested → no *)
+		// Smart-pointer wrappers are pointer-like so no `*` is needed
+		// next to them; value-typed containers need `*` to be addressed.
+		if !nestedIsSmartPtr {
 			return rendered + "*"
 		}
 		return rendered
@@ -391,7 +382,9 @@ func renderPODGenericArg(a string, reg *Registry, smartPtrOuter bool) string {
 		inner := a[open+1 : len(a)-1]
 		nested := parser.Type{Name: innerName, Generics: inner}
 		rendered := renderPODGenericInners(nested, reg)
-		if smartPtrOuter && !isSmartPointerWrapper(cppHead(innerName)) {
+		// Same rule as renderGenericArg: nested non-smart-pointer
+		// generic gets `*`; nested smart-pointer doesn't.
+		if !isSmartPointerWrapper(cppHead(innerName)) {
 			return rendered + "*"
 		}
 		return rendered
