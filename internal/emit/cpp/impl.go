@@ -1643,25 +1643,40 @@ func rewriteCStyleCast(seg string, reg *sema.Registry, smartPtrNames []string) s
 // rewritePrimitiveTypes maps IDL primitive type names used as types in
 // method-body code to their C++ counterparts. The JAR translates these
 // when the user writes a local variable declaration like
-// `string guildKey = String.valueOf(...);` — both `string`/`unicode` need
-// to become `String`/`UnicodeString` for the C++ to compile. Other
-// primitives (int, long, etc.) already match C++.
+// `string guildKey = String.valueOf(...);` or
+// `unsigned long currentoid = ...;`. Without the rewrite the generated
+// C++ uses the wrong type name (mismatched with field/return types
+// elsewhere) and overload-resolution against templates like VectorMap
+// gets ambiguous.
+//
+// Order matters: longer keys must run before shorter ones, so
+// `unsigned long` is rewritten BEFORE `long` (the latter would match
+// inside the former). Iterating the slice in declaration order
+// guarantees this.
 func rewritePrimitiveTypes(line string) string {
-	for idl, cpp := range bodyTypeRewrites {
-		re, ok := identRewriters["bt:"+idl]
+	for _, rule := range bodyTypeRewrites {
+		re, ok := identRewriters["bt:"+rule.idl]
 		if !ok {
-			re = regexp.MustCompile(`\b` + idl + `\b`)
-			identRewriters["bt:"+idl] = re
+			re = regexp.MustCompile(`\b` + rule.idl + `\b`)
+			identRewriters["bt:"+rule.idl] = re
 		}
-		line = re.ReplaceAllString(line, cpp)
+		line = re.ReplaceAllString(line, rule.cpp)
 	}
 	return line
 }
 
-var bodyTypeRewrites = map[string]string{
-	"string":  "String",
-	"unicode": "UnicodeString",
-	"boolean": "bool",
+var bodyTypeRewrites = []struct{ idl, cpp string }{
+	// `unsigned long` → `unsigned long long`. The bare `long` → `long long`
+	// rule was tempting but unsafe: after `unsigned long` is rewritten,
+	// the bare-`long` regex would re-fire on both occurrences in the
+	// expanded text, producing `unsigned long long long long`. Bare
+	// `long` is uncommon in IDL bodies; if it appears, current C++
+	// emit keeps it as `long` (32-bit on some platforms) — accept that
+	// width discrepancy until we see it cause a compile failure.
+	{"unsigned long", "unsigned long long"},
+	{"string", "String"},
+	{"unicode", "UnicodeString"},
+	{"boolean", "bool"},
 }
 
 // rewriteSuperDot replaces `super.X` and `super.field.X` references
