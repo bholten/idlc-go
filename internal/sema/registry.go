@@ -130,6 +130,20 @@ func (r *Registry) classifies(name string) classKind {
 	return classUnknown
 }
 
+// IsManagedShortName reports whether an unqualified class name resolves
+// to an IDL-managed class (registered via `Add`, not `AddNoPOD`). Used
+// by the body rewriter to decide whether `Type ident = expr;` should be
+// wrapped as `ManagedReference<Type* > ident = expr;`.
+func (r *Registry) IsManagedShortName(name string) bool {
+	return r.classifies(name) == idlManaged
+}
+
+// IsNoPODShortName reports whether an unqualified class name resolves
+// to an IDL no-POD class (registered via `AddNoPOD`).
+func (r *Registry) IsNoPODShortName(name string) bool {
+	return r.classifies(name) == idlNoPOD
+}
+
 // AddNoPOD registers an IDL class that has no POD companion — its
 // forward decl in headers omits the `class XPOD;` line.
 func (r *Registry) AddNoPOD(qname string) {

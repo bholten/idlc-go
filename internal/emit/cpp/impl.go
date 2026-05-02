@@ -486,16 +486,17 @@ func emitImplCustomCtor(w io.Writer, m *sema.Model, cc *sema.Ctor) {
 	c := m.Class
 
 	superArgs, restBody, hasSuper := extractSuperCall(cc.Body.Raw)
+	ctx := makeBodyCtx(m, cc.Params)
 
 	initList := ""
 	if hasSuper {
-		initList = " : " + c.ImplBase() + "(" + superArgs + ")"
+		initList = " : " + c.ImplBase() + "(" + rewriteBodyLine(superArgs, ctx) + ")"
 	}
 
 	fmt.Fprintf(w, "%s::%s(%s)%s {\n",
 		c.ImplName, c.ImplName, joinParamDecls(cc.Params, m.Registry), initList)
 	fmt.Fprintf(w, "\t_initializeImplementation();\n")
-	emitBodyWithSourceComments(w, m, restBody, makeBodyCtx(m, cc.Params))
+	emitBodyWithSourceComments(w, m, restBody, ctx)
 	fmt.Fprintf(w, "}\n\n")
 }
 
@@ -708,17 +709,18 @@ func emitImplDefaultCtor(w io.Writer, m *sema.Model) {
 		rawBody = ctor.Body.Raw
 	}
 	superArgs, restBody, hasSuper := extractSuperCall(rawBody)
+	ctx := makeBodyCtx(m, ctor.Params)
 
 	initList := ""
 	if hasSuper {
-		initList = " : " + c.ImplBase() + "(" + superArgs + ")"
+		initList = " : " + c.ImplBase() + "(" + rewriteBodyLine(superArgs, ctx) + ")"
 	}
 
 	fmt.Fprintf(w, "%s::%s()%s {\n", c.ImplName, c.ImplName, initList)
 	fmt.Fprintf(w, "\t_initializeImplementation();\n")
 
 	if rawBody != "" {
-		emitBodyWithSourceComments(w, m, restBody, makeBodyCtx(m, ctor.Params))
+		emitBodyWithSourceComments(w, m, restBody, ctx)
 	}
 
 	fmt.Fprintf(w, "}\n\n")
@@ -795,6 +797,7 @@ func emitBodyWithSourceComments(w io.Writer, m *sema.Model, raw string, ctx body
 
 	syncs := findSynchronizedBlocks(lines)
 	ifElses := findIfElseNoBraces(lines)
+	locals := findClassLocalVars(lines, &ctx)
 
 	for i, line := range lines {
 		leadingWS, body := splitLeadingWhitespace(line)
@@ -824,9 +827,91 @@ func emitBodyWithSourceComments(w io.Writer, m *sema.Model, raw string, ctx body
 
 		compactedWS := collapseSpaceRuns(leadingWS)
 		fmt.Fprintf(w, "\t// %s():  %s%s\n", m.IDLPath, compactedWS, body)
-		fmt.Fprintf(w, "\t%s\n", rewriteBodyLine(body, ctx))
+		rewritten := rewriteBodyLine(body, ctx)
+		if loc, ok := locals[i]; ok {
+			rewritten = rewriteLocalClassDecl(rewritten, loc)
+		}
+		fmt.Fprintf(w, "\t%s\n", rewritten)
 	}
 }
+
+// localClassDecl carries the per-line rewrite info for a class-typed
+// local variable declaration in a method body.
+type localClassDecl struct {
+	typeName string // e.g. "Zone"
+	ident    string // e.g. "zone"
+	managed  bool   // true → wrap as ManagedReference<T* >, false → raw `T*`
+}
+
+// localVarDeclRe matches `<TypeName> <ident> = <expr>;`-style local var
+// decls at the top of a body line. Generic types (`Vector<X>`) and
+// pointer types (`X*`) are skipped — we only handle the plain
+// `Capitalized identifier` form, which is what IDL authors actually
+// write.
+var localVarDeclRe = regexp.MustCompile(`^(\s*)([A-Z][A-Za-z0-9_]*)(\s+)([a-zA-Z_][a-zA-Z0-9_]*)(\s*=)`)
+
+// findClassLocalVars scans body lines for `<TypeName> <ident> = ...;`
+// declarations where TypeName is a known IDL class. For each match it:
+//
+//  1. Records the line index and decl info in the returned map (so
+//     `emitBodyWithSourceComments` can rewrite the type to its wrapped
+//     form on the C++ side).
+//  2. Adds the local's identifier to ctx.classNames so subsequent
+//     `<ident>.method()` references rewrite to `<ident>->method()`.
+//
+// Engine3 utility types (String, Time, Vector3, ...) live in the
+// registry's `externalHeaders` bucket — `IsManagedShortName` /
+// `IsNoPODShortName` both return false for them, so they're left alone.
+func findClassLocalVars(lines []string, ctx *bodyCtx) map[int]localClassDecl {
+	out := map[int]localClassDecl{}
+
+	if ctx.registry == nil {
+		return out
+	}
+
+	for i, raw := range lines {
+		m := localVarDeclRe.FindStringSubmatch(raw)
+		if m == nil {
+			continue
+		}
+
+		typeName := m[2]
+		ident := m[4]
+
+		switch {
+		case ctx.registry.IsManagedShortName(typeName):
+			out[i] = localClassDecl{typeName: typeName, ident: ident, managed: true}
+		case ctx.registry.IsNoPODShortName(typeName):
+			out[i] = localClassDecl{typeName: typeName, ident: ident, managed: false}
+		default:
+			continue
+		}
+
+		ctx.classNames = append(ctx.classNames, ident)
+	}
+
+	return out
+}
+
+// rewriteLocalClassDecl applies the type-rewrite for a class-typed
+// local-var declaration. Managed locals get `ManagedReference<T* >`;
+// noPOD/header locals get raw `T*`. The rewrite operates on the
+// already-rewritten C++ line (post-`rewriteBodyLine`), keying off the
+// captured TypeName/ident pair from the pre-scan.
+func rewriteLocalClassDecl(line string, d localClassDecl) string {
+	key := "lv:" + d.typeName + ":" + d.ident
+	re, ok := identRewriters[key]
+	if !ok {
+		re = regexp.MustCompile(`\b` + regexp.QuoteMeta(d.typeName) + `(\s+)` + regexp.QuoteMeta(d.ident) + `\b`)
+		identRewriters[key] = re
+	}
+
+	if d.managed {
+		return re.ReplaceAllString(line, "ManagedReference<"+d.typeName+"* >${1}"+d.ident)
+	}
+	return re.ReplaceAllString(line, d.typeName+"*${1}"+d.ident)
+}
+
 
 // ifElseRole tags a body line involved in an if/else-without-braces
 // JAR quirk. The JAR's emit folds an `if (...)` (or `else`) line and
@@ -1068,10 +1153,15 @@ func stripBodyComments(raw string) string {
 // bodyCtx carries the lookup tables the body rewriter needs to produce
 // the C++ line for each captured IDL line.
 type bodyCtx struct {
-	dereferencedFields []string
-	classNames         []string // class-typed identifiers (fields + params) — get .X → ->X
-	importedClasses    []string // unqualified imported class names — get .X → ::X
-	superImpl          string   // BaseImpl name for `super.method` → `BaseImpl::method` rewrite
+	dereferencedFields      []string // @dereferenced field names; trigger `field.X` → `(&field)->X`
+	dereferencedClassFields []string // subset of dereferencedFields whose IDL type is a class (not a primitive);
+	// these additionally trigger the bare-form `field` → `(&field)` rewrite. Primitive `@dereferenced`
+	// fields (e.g. `string jtlZoneName`) skip the bare-form because the field is already by-value
+	// and no `&`-coerce is needed.
+	classNames      []string       // class-typed identifiers (fields + params + locals) — get .X → ->X
+	importedClasses []string       // unqualified imported class names — get .X → ::X
+	superImpl       string         // BaseImpl name for `super.method` → `BaseImpl::method` rewrite
+	registry        *sema.Registry // optional; used to classify local-var class types
 }
 
 // makeBodyCtx builds the rewrite context for a method (or ctor) body.
@@ -1082,25 +1172,60 @@ type bodyCtx struct {
 // references like `System.getTime()` are rewritten to `System::getTime()`.
 func makeBodyCtx(m *sema.Model, params []sema.Param) bodyCtx {
 	c := m.Class
-	ctx := bodyCtx{dereferencedFields: c.DereferencedFieldNames}
+	ctx := bodyCtx{dereferencedFields: c.DereferencedFieldNames, registry: m.Registry}
 	if !c.IsRoot() {
 		ctx.superImpl = c.ImplBase()
 	}
 
 	for _, f := range c.Fields {
-		if f.IsConst || f.Dereferenced {
+		if f.IsConst {
 			continue
 		}
 
-		if !sema.IsPrimitive(f.IDLType.Name) && f.IDLType.Generics == "" {
+		if f.Dereferenced {
+			// Bare-form `field` → `(&field)` only fires for class-typed
+			// @dereferenced fields. Primitive ones (string / int / ...)
+			// are already by-value in C++ and don't need coercion.
+			if !sema.IsPrimitive(f.IDLType.Name) {
+				ctx.dereferencedClassFields = append(ctx.dereferencedClassFields, f.Name)
+			}
+			continue
+		}
+
+		// Non-primitive fields render as `Reference<X*>` /
+		// `ManagedReference<X*>` / `Reference<Vector<X>*>` in C++ (see
+		// CppRenderFieldType) — pointer-like. Body access uses `->`, so
+		// add the field's identifier to classNames for the `.X → ->X`
+		// rewrite. Engine3 utility-type fields are nearly always marked
+		// `@dereferenced` and thus already filtered out above.
+		if !sema.IsPrimitive(f.IDLType.Name) {
 			ctx.classNames = append(ctx.classNames, f.Name)
 		}
 	}
 
 	for _, p := range params {
-		if !sema.IsPrimitive(p.IDLType.Name) && p.IDLType.Generics == "" {
-			ctx.classNames = append(ctx.classNames, p.Name)
+		if sema.IsPrimitive(p.IDLType.Name) {
+			continue
 		}
+		// Mirror `paramDecl`'s pointer-vs-value choice. By-reference
+		// renderings (@dereferenced + String/UnicodeString) use `.X`
+		// in body, so skip them. Everything else (plain class param,
+		// generic param) renders as `T*` in C++ and uses `->X`.
+		if p.Dereferenced {
+			continue
+		}
+		if p.IDLType.Generics == "" {
+			head := p.IDLType.Name
+			if head == "string" || head == "unicode" {
+				// Already filtered by IsPrimitive, but keep symmetry.
+				continue
+			}
+			rendered := sema.CppRender(p.IDLType)
+			if rendered == "String" || rendered == "UnicodeString" {
+				continue
+			}
+		}
+		ctx.classNames = append(ctx.classNames, p.Name)
 	}
 
 	addQName := func(qname string) {
@@ -1227,7 +1352,24 @@ func findSynchronizedBlocks(lines []string) map[int]syncEntry {
 func emitSyncOpener(w io.Writer, idlPath string, s syncEntry, ctx bodyCtx) {
 	fmt.Fprintf(w, "\t// %s():  %s}\n", idlPath, s.closerWS)
 	fmt.Fprintf(w, "{\n")
-	fmt.Fprintf(w, "\tLocker _locker(%s);\n", rewriteBodyLine(s.arg, ctx))
+	fmt.Fprintf(w, "\tLocker _locker(%s);\n", rewriteSyncArg(s.arg, ctx))
+}
+
+// rewriteSyncArg renders the argument of a `synchronized (X) { ... }`
+// opener for emission inside `Locker _locker(<arg>);`. If the IDL arg is
+// a single identifier matching a `@dereferenced` field, wrap it as
+// `(&fieldname)` — this is the only place the JAR emits the bare-form
+// `(&X)` for a dereferenced field. Otherwise pass the arg through the
+// regular body rewrite chain (this covers cases like
+// `synchronized (this) { ... }` → `_this.getReferenceUnsafeStaticCast()`).
+func rewriteSyncArg(arg string, ctx bodyCtx) string {
+	trimmed := strings.TrimSpace(arg)
+	for _, f := range ctx.dereferencedFields {
+		if trimmed == f {
+			return "(&" + f + ")"
+		}
+	}
+	return rewriteBodyLine(arg, ctx)
 }
 
 func splitLeadingWhitespace(s string) (leading, rest string) {
@@ -1334,14 +1476,62 @@ func rewriteBodyLine(line string, ctx bodyCtx) string {
 // responsible for splitting the input around `"..."` regions.
 func rewriteCodeSegment(seg string, ctx bodyCtx) string {
 	seg = rewriteNull(seg)
-	seg = rewriteDereferenced(seg, ctx.dereferencedFields)
+	seg = rewriteDereferenced(seg, ctx.dereferencedFields, ctx.dereferencedClassFields)
 	seg = rewriteClassDot(seg, ctx.classNames)
 	seg = rewriteImportedClassDot(seg, ctx.importedClasses)
 	seg = rewriteSuperDot(seg, ctx.superImpl)
 	seg = rewritePrimitiveTypes(seg)
 	seg = rewriteThis(seg)
+	seg = rewriteChainedCallDot(seg)
+	seg = rewriteCStyleCast(seg, ctx.registry)
 
 	return seg
+}
+
+// rewriteChainedCallDot rewrites `).X` → `)->X` for chained method
+// calls. IDL bodies use Java-style `.` for both pointer dereference and
+// member access; on the C++ side, anything chained off a method call is
+// a `T*`-returning method (managed-class methods) so the dot must be
+// `->`. This is a textual rewrite; the JAR does not type-check.
+//
+// Example:
+//
+//	zone.getPlanetManager().getNearestPlanetTravelPoint(this)
+//	-> zone->getPlanetManager()->getNearestPlanetTravelPoint(this)
+//
+// `rewriteClassDot` already turns the first `.` into `->`; this rewrite
+// catches every subsequent chained `.X`.
+var chainedCallDotRe = regexp.MustCompile(`\)\.([a-zA-Z_])`)
+
+func rewriteChainedCallDot(seg string) string {
+	return chainedCallDotRe.ReplaceAllString(seg, ")->$1")
+}
+
+// rewriteCStyleCast rewrites Java-style downcasts on IDL class types:
+//
+//	(ClassName) ident  →  dynamic_cast<ClassName*>(ident)
+//
+// where ClassName is a registry-known IDL class (managed or noPOD).
+// Engine3 utility types and primitives are ignored — those use
+// by-value semantics and don't need pointer-cast rewrites.
+var cStyleCastRe = regexp.MustCompile(`\(([A-Z][A-Za-z0-9_]*)\)\s*([a-zA-Z_][a-zA-Z0-9_]*)`)
+
+func rewriteCStyleCast(seg string, reg *sema.Registry) string {
+	if reg == nil {
+		return seg
+	}
+
+	return cStyleCastRe.ReplaceAllStringFunc(seg, func(match string) string {
+		m := cStyleCastRe.FindStringSubmatch(match)
+		if m == nil {
+			return match
+		}
+		typeName, ident := m[1], m[2]
+		if !reg.IsManagedShortName(typeName) && !reg.IsNoPODShortName(typeName) {
+			return match
+		}
+		return "dynamic_cast<" + typeName + "*>(" + ident + ")"
+	})
 }
 
 // rewritePrimitiveTypes maps IDL primitive type names used as types in
@@ -1367,14 +1557,28 @@ var bodyTypeRewrites = map[string]string{
 	"unicode": "UnicodeString",
 }
 
-// rewriteSuperDot replaces `super.X` → `BaseImpl::X`. The IDL writes
-// `super.method(args)` for parent-class method calls; on the impl side
-// that becomes `<BaseClassImplementation>::method(args)`. Only fires
-// when the class has a base (not root).
+// rewriteSuperDot replaces `super.X` → `BaseImpl::X` and the more
+// specific `super.field.method()` shape → `BaseImpl::field->method()`.
+// The IDL writes `super.method(args)` for parent-class method calls and
+// `super.field.method()` for chained access through a parent field; on
+// the impl side that becomes `<BaseClassImplementation>::method(args)`
+// and `<BaseClassImplementation>::field->method(args)` respectively.
+// The chained-field form catches the second `.` because parent fields
+// aren't in our local `classNames` set (we don't parse parent IDLs).
+// Only fires when the class has a base (not root).
 func rewriteSuperDot(line, baseImpl string) string {
 	if baseImpl == "" {
 		return line
 	}
+
+	chainedKey := "super-chain:" + baseImpl
+	chainedRe, ok := identRewriters[chainedKey]
+	if !ok {
+		chainedRe = regexp.MustCompile(`\bsuper\.([A-Za-z_][A-Za-z0-9_]*)\.`)
+		identRewriters[chainedKey] = chainedRe
+	}
+	line = chainedRe.ReplaceAllString(line, baseImpl+"::${1}->")
+
 	re, ok := identRewriters["super:"+baseImpl]
 	if !ok {
 		re = regexp.MustCompile(`\bsuper\.`)
@@ -1411,27 +1615,44 @@ func rewriteNull(line string) string {
 
 // rewriteDereferenced applies the JAR's @dereferenced-field text rewrite:
 //
-//	field.X    →  (&field)->X
-//	bare field →  (&field)
+//	field.X    →  (&field)->X    (always — `allFields`)
+//	bare field →  (&field)        (only when field's IDL type is a
+//	                               non-primitive class — `classFields`)
 //
-// Single-pass regex per field via `\bfield\b\.?` — the optional `.`
-// disambiguates which replacement to use, avoiding the double-rewrite
-// problem when an earlier substitution puts `field` back into the line.
-func rewriteDereferenced(line string, fields []string) string {
-	for _, f := range fields {
+// Primitive @dereferenced fields (e.g. `@dereferenced string jtlZoneName`)
+// skip the bare-form because the field is already a by-value `String` /
+// `int` / etc. — no `&`-coerce is needed. Class-typed @dereferenced
+// fields use the bare-form to convert the by-value field into a `T*`
+// when the surrounding context wants a pointer (e.g. assigning the
+// field to a `ManagedReference<T*>` field, or returning it from a
+// `T*`-returning method).
+func rewriteDereferenced(line string, allFields, classFields []string) string {
+	classSet := map[string]bool{}
+	for _, f := range classFields {
+		classSet[f] = true
+	}
+
+	for _, f := range allFields {
 		re, ok := identRewriters["d:"+f]
 
 		if !ok {
-			re = regexp.MustCompile(`\b` + regexp.QuoteMeta(f) + `\b\.?`)
+			if classSet[f] {
+				re = regexp.MustCompile(`\b` + regexp.QuoteMeta(f) + `\b\.?`)
+			} else {
+				re = regexp.MustCompile(`\b` + regexp.QuoteMeta(f) + `\b\.`)
+			}
 			identRewriters["d:"+f] = re
 		}
 
+		isClass := classSet[f]
 		line = re.ReplaceAllStringFunc(line, func(match string) string {
 			if strings.HasSuffix(match, ".") {
 				return "(&" + f + ")->"
 			}
-
-			return "(&" + f + ")"
+			if isClass {
+				return "(&" + f + ")"
+			}
+			return match
 		})
 	}
 	return line

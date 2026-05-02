@@ -151,26 +151,73 @@ func CppRenderFieldType(f Field, reg *Registry) string {
 // wrapping (`ManagedReference<X* >` for IDL-managed args, bare `X*` for
 // non-IDL class args, plain for primitives). Returns just `Head<args>`
 // — the outer wrap (if any) is the caller's responsibility.
+//
+// Nested generics (`Reference<GalaxyBanEntry>` inside a `VectorMap<...>`)
+// recurse: the inner generic's class arg gets wrapped per the same
+// rules, so `Reference<GalaxyBanEntry>` → `Reference<GalaxyBanEntry*>`.
 func renderGenericInners(t parser.Type, reg *Registry) string {
 	head := cppHead(t.Name)
-	args := strings.Split(t.Generics, ", ")
+	args := splitGenericArgs(t.Generics)
 	for i, a := range args {
-		a = strings.TrimSpace(a)
-		if IsPrimitive(a) {
-			args[i] = cppHead(a)
-			continue
-		}
-		if reg.classifies(a) == idlManaged {
-			args[i] = "ManagedReference<" + cppHead(a) + "* >"
-			continue
-		}
-		args[i] = cppHead(a) + "*"
+		args[i] = renderGenericArg(a, reg)
 	}
 	joined := strings.Join(args, ", ")
-	if strings.HasSuffix(joined, " >") {
+	if strings.HasSuffix(joined, ">") {
+		// Avoid `>>` by inserting a separating space (matches JAR /
+		// pre-C++14 template-parse convention). Also covers chains like
+		// `> >` from a previously-rendered nested generic.
 		return head + "<" + joined + " >"
 	}
 	return head + "<" + joined + ">"
+}
+
+// renderGenericArg renders one argument of a generic type. Recurses into
+// nested generics; flat class names get the `*` suffix; primitives pass
+// through. IDL-managed class names get the `ManagedReference<X*>` wrap
+// (matching renderGenericInners' top-level rule).
+func renderGenericArg(a string, reg *Registry) string {
+	a = strings.TrimSpace(a)
+	if IsPrimitive(a) {
+		return cppHead(a)
+	}
+	if open := strings.Index(a, "<"); open >= 0 && strings.HasSuffix(a, ">") {
+		innerName := a[:open]
+		inner := a[open+1 : len(a)-1]
+		nested := parser.Type{Name: innerName, Generics: inner}
+		return renderGenericInners(nested, reg)
+	}
+	if reg.classifies(a) == idlManaged {
+		return "ManagedReference<" + cppHead(a) + "* >"
+	}
+	return cppHead(a) + "*"
+}
+
+// splitGenericArgs splits a generic-args string by top-level commas,
+// preserving nested `<...>` groups. Example:
+//
+//	splitGenericArgs("unsigned int, Reference<GalaxyBanEntry>")
+//	  ⟶ ["unsigned int", "Reference<GalaxyBanEntry>"]
+func splitGenericArgs(s string) []string {
+	var out []string
+	depth := 0
+	start := 0
+	for i, ch := range s {
+		switch ch {
+		case '<':
+			depth++
+		case '>':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, strings.TrimSpace(s[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	if start < len(s) {
+		out = append(out, strings.TrimSpace(s[start:]))
+	}
+	return out
 }
 
 // CppRenderPODFieldType renders a POD class's `Optional<...>` inner.
@@ -237,27 +284,38 @@ func CppRenderPODFieldType(f Field, reg *Registry) string {
 
 // renderPODGenericInners is the POD analogue of renderGenericInners:
 // inner class args wrap as `ManagedReference<XPOD* >` for IDL-managed,
-// bare `X*` for non-IDL.
+// bare `X*` for non-IDL. Recurses into nested generics.
 func renderPODGenericInners(t parser.Type, reg *Registry) string {
 	head := cppHead(t.Name)
-	args := strings.Split(t.Generics, ", ")
+	args := splitGenericArgs(t.Generics)
 	for i, a := range args {
-		a = strings.TrimSpace(a)
-		if IsPrimitive(a) {
-			args[i] = cppHead(a)
-			continue
-		}
-		if reg.classifies(a) == idlManaged {
-			args[i] = "ManagedReference<" + cppHead(a) + "POD* >"
-			continue
-		}
-		args[i] = cppHead(a) + "*"
+		args[i] = renderPODGenericArg(a, reg)
 	}
 	joined := strings.Join(args, ", ")
-	if strings.HasSuffix(joined, " >") {
+	if strings.HasSuffix(joined, ">") {
+		// Avoid `>>` by inserting a separating space (matches JAR /
+		// pre-C++14 template-parse convention). Also covers chains like
+		// `> >` from a previously-rendered nested generic.
 		return head + "<" + joined + " >"
 	}
 	return head + "<" + joined + ">"
+}
+
+func renderPODGenericArg(a string, reg *Registry) string {
+	a = strings.TrimSpace(a)
+	if IsPrimitive(a) {
+		return cppHead(a)
+	}
+	if open := strings.Index(a, "<"); open >= 0 && strings.HasSuffix(a, ">") {
+		innerName := a[:open]
+		inner := a[open+1 : len(a)-1]
+		nested := parser.Type{Name: innerName, Generics: inner}
+		return renderPODGenericInners(nested, reg)
+	}
+	if reg.classifies(a) == idlManaged {
+		return "ManagedReference<" + cppHead(a) + "POD* >"
+	}
+	return cppHead(a) + "*"
 }
 
 func cppHead(idlName string) string {

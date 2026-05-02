@@ -14,7 +14,10 @@ func Resolve(f *parser.File) (*Model, error) {
 		return nil, errf("nil file or class")
 	}
 
-	pkgParts := strings.Split(f.Package, ".")
+	var pkgParts []string
+	if f.Package != "" {
+		pkgParts = strings.Split(f.Package, ".")
+	}
 	className := f.Class.Name
 	pathDir := path.Join(pkgParts...)
 	idlPath := path.Join(pathDir, className+".idl")
