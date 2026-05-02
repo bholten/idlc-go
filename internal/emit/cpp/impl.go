@@ -1661,15 +1661,16 @@ var bodyTypeRewrites = map[string]string{
 // rewriteSuperDot replaces `super.X` and `super.field.X` references
 // with their C++ impl-side form. The prefix is the IMMEDIATE parent's
 // `*Implementation` class (`<DirectParent>Impl::`); the unwrap form
-// for `super.field.X` depends on the parent field's type AND
-// annotations. We walk the inheritance chain via the registry's
-// classMeta to look up both.
+// depends on the parent field's type AND annotations. We walk the
+// inheritance chain via the registry's classMeta to look up both.
 //
 // Cases (verified against JAR emit):
 //
 //	super.method(args)               → BaseImpl::method(args)
-//	super.weakManagedField.method()  → BaseImpl::field.getForUpdate().get()->method()  (@weakReference)
+//	super.weakManagedField.method()  → BaseImpl::field.getForUpdate().get()->method()  (@weakReference, with chain)
+//	super.weakManagedField           → BaseImpl::field.getForUpdate()                  (@weakReference, bare)
 //	super.plainManagedField.method() → BaseImpl::field.getForUpdate()->method()        (plain managed → ManagedReference<X*>)
+//	super.plainManagedField          → BaseImpl::field.getForUpdate()                  (plain managed, bare)
 //	super.derefField.method()        → BaseImpl::field->method()                       (@dereferenced — wrapper has operator->)
 //	super.plainNonMgmtField.method() → BaseImpl::field->method()                       (plain Reference<X*> — has operator->)
 //
@@ -1680,13 +1681,14 @@ var bodyTypeRewrites = map[string]string{
 //
 // `LookupInheritedField` returns false when the field's declaring class
 // isn't in the registry (e.g. an engine3-side field we never scanned).
-// We fall back to the plain `->` form — the most common case for
+// We fall back to the plain form — the most common case for
 // non-managed parent fields.
 func rewriteSuperDot(line string, ctx bodyCtx) string {
 	if ctx.superImpl == "" {
 		return line
 	}
 
+	// First handle `super.<field>.X` (chained access).
 	chainedRe, ok := identRewriters["super-chain"]
 	if !ok {
 		chainedRe = regexp.MustCompile(`\bsuper\.([A-Za-z_][A-Za-z0-9_]*)\.`)
@@ -1711,6 +1713,32 @@ func rewriteSuperDot(line string, ctx bodyCtx) string {
 		}
 	})
 
+	// Then `super.<field>` bare (no trailing `.`) — typically used as
+	// a function arg or value. For managed parent fields, append
+	// `.getForUpdate()` to fetch the raw pointer with the write barrier.
+	// Match `\bsuper\.<ident>` NOT followed by `.` or `(` — the latter
+	// avoids clobbering `super.method(args)`, which is handled below.
+	bareRe, ok := identRewriters["super-bare"]
+	if !ok {
+		bareRe = regexp.MustCompile(`\bsuper\.([A-Za-z_][A-Za-z0-9_]*)\b(?:[^a-zA-Z0-9_(.]|$)`)
+		identRewriters["super-bare"] = bareRe
+	}
+	line = bareRe.ReplaceAllStringFunc(line, func(match string) string {
+		m := bareRe.FindStringSubmatch(match)
+		if m == nil {
+			return match
+		}
+		fieldName := m[1]
+		// Trailing char (the non-alpha-num that ended the match) — preserve it.
+		trailing := match[len("super.")+len(fieldName):]
+		fld, found := ctx.registry.LookupInheritedField(ctx.superClass, fieldName)
+		if found && (fld.WeakRef || ctx.registry.IsManagedShortName(fld.TypeName)) {
+			return ctx.superImpl + "::" + fieldName + ".getForUpdate()" + trailing
+		}
+		return ctx.superImpl + "::" + fieldName + trailing
+	})
+
+	// Finally `super.X(args)` (method calls) and any leftover `super.`.
 	re, ok := identRewriters["super:"+ctx.superImpl]
 	if !ok {
 		re = regexp.MustCompile(`\bsuper\.`)
@@ -1793,6 +1821,13 @@ func rewriteDereferenced(line string, allFields, classFields []string) string {
 // rewriteClassDot replaces `name.` with `name->` for known class-typed
 // identifiers. Doesn't touch bare `name` (no following `.`) — those
 // already render as the right pointer-like value in C++.
+//
+// Skips matches where `name` is preceded by `::` — that's a qualified
+// reference to a parent's field (`BaseImpl::field.getForUpdate()`) and
+// the dot is part of a synthesized member access we don't want to
+// re-rewrite. Same-name shadowing (parent field + local var with the
+// same identifier) is the case where this matters; without the guard,
+// the local-var entry in classNames would clobber the parent emit.
 func rewriteClassDot(line string, names []string) string {
 	for _, n := range names {
 		re, ok := identRewriters["c:"+n]
@@ -1802,7 +1837,13 @@ func rewriteClassDot(line string, names []string) string {
 			identRewriters["c:"+n] = re
 		}
 
-		line = re.ReplaceAllString(line, n+"->")
+		line = re.ReplaceAllStringFunc(line, func(match string) string {
+			start := strings.Index(line, match)
+			if start >= 2 && line[start-2:start] == "::" {
+				return match
+			}
+			return n + "->"
+		})
 	}
 
 	return line
