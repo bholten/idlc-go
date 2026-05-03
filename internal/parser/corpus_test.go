@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/bholten/tools/idlc-go/internal/corpus"
+	"github.com/bholten/idlc-go/internal/corpus"
 )
 
 func TestParseCorpus(t *testing.T) {

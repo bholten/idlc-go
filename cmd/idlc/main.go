@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/bholten/tools/idlc-go/internal/cli"
+	"github.com/bholten/idlc-go/internal/cli"
 )
 
 func main() {

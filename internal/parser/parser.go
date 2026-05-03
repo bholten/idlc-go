@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bholten/tools/idlc-go/internal/lexer"
+	"github.com/bholten/idlc-go/internal/lexer"
 )
 
 type Parser struct {

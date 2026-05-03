@@ -18,9 +18,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bholten/tools/idlc-go/internal/emit/cpp"
-	"github.com/bholten/tools/idlc-go/internal/parser"
-	"github.com/bholten/tools/idlc-go/internal/sema"
+	"github.com/bholten/idlc-go/internal/emit/cpp"
+	"github.com/bholten/idlc-go/internal/parser"
+	"github.com/bholten/idlc-go/internal/sema"
 )
 
 var update = flag.Bool("update", false, "write generated output to testdata/probe/expected/ instead of diffing")

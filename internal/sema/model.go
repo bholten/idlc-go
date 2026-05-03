@@ -3,7 +3,7 @@
 // and annotation flag extraction.
 package sema
 
-import "github.com/bholten/tools/idlc-go/internal/parser"
+import "github.com/bholten/idlc-go/internal/parser"
 
 // Model is everything the emitter needs to produce one .h / .cpp pair.
 type Model struct {

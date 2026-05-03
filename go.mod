@@ -1,3 +1,3 @@
-module github.com/bholten/tools/idlc-go
+module github.com/bholten/idlc-go
 
 go 1.21

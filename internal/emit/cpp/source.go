@@ -5,7 +5,7 @@ import (
 	"io"
 	"path"
 
-	"github.com/bholten/tools/idlc-go/internal/sema"
+	"github.com/bholten/idlc-go/internal/sema"
 )
 
 func emitSource(w io.Writer, m *sema.Model, reg *sema.Registry) {

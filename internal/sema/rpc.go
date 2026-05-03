@@ -3,7 +3,7 @@ package sema
 import (
 	"strings"
 
-	"github.com/bholten/tools/idlc-go/internal/parser"
+	"github.com/bholten/idlc-go/internal/parser"
 )
 
 // legacyRPCSeeds maps the *first* RPC method of a class (by qualified

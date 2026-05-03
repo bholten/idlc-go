@@ -25,8 +25,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bholten/tools/idlc-go/internal/parser"
-	"github.com/bholten/tools/idlc-go/internal/sema"
+	"github.com/bholten/idlc-go/internal/parser"
+	"github.com/bholten/idlc-go/internal/sema"
 )
 
 var enumRe = regexp.MustCompile(`^enum \{RPC_[A-Z0-9_]+ = (\d+)`)

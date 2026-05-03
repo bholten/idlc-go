@@ -9,7 +9,7 @@ package cpp
 import (
 	"bytes"
 
-	"github.com/bholten/tools/idlc-go/internal/sema"
+	"github.com/bholten/idlc-go/internal/sema"
 )
 
 // Generate produces the .h and .cpp file contents for one model.

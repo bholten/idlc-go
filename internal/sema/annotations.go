@@ -1,6 +1,6 @@
 package sema
 
-import "github.com/bholten/tools/idlc-go/internal/parser"
+import "github.com/bholten/idlc-go/internal/parser"
 
 func hasAnnotation(anns []parser.Annotation, name string) bool {
 	for _, a := range anns {

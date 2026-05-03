@@ -4,8 +4,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/bholten/tools/idlc-go/internal/hash"
-	"github.com/bholten/tools/idlc-go/internal/parser"
+	"github.com/bholten/idlc-go/internal/hash"
+	"github.com/bholten/idlc-go/internal/parser"
 )
 
 // Resolve lowers a parsed IDL file into the emit-ready Model.

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bholten/tools/idlc-go/internal/corpus"
+	"github.com/bholten/idlc-go/internal/corpus"
 )
 
 func TestParseChatMessage(t *testing.T) {

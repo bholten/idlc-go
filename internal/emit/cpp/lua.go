@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/bholten/tools/idlc-go/internal/parser"
-	"github.com/bholten/tools/idlc-go/internal/sema"
+	"github.com/bholten/idlc-go/internal/parser"
+	"github.com/bholten/idlc-go/internal/sema"
 )
 
 // emitLuaHeader writes the `class Lua<Class>` wrapper declaration that

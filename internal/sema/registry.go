@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bholten/tools/idlc-go/internal/lexer"
-	"github.com/bholten/tools/idlc-go/internal/parser"
+	"github.com/bholten/idlc-go/internal/lexer"
+	"github.com/bholten/idlc-go/internal/parser"
 )
 
 // Registry tracks which qualified `package.Class` names are defined as

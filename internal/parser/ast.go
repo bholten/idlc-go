@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/bholten/tools/idlc-go/internal/lexer"
+import "github.com/bholten/idlc-go/internal/lexer"
 
 type Visibility string
 

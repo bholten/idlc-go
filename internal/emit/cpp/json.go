@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/bholten/tools/idlc-go/internal/sema"
+	"github.com/bholten/idlc-go/internal/sema"
 )
 
 // emitImplWriteJSON writes FooImplementation::writeJSON, gated on @json.
