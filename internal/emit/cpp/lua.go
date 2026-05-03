@@ -446,4 +446,3 @@ func hasGenericParam(params []sema.Param) bool {
 
 	return false
 }
-

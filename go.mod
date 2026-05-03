@@ -1,3 +1,3 @@
 module github.com/bholten/tools/idlc-go
 
-go 1.25.9
+go 1.21

@@ -1,0 +1,21 @@
+idlc-go
+Copyright (c) 2026 Brennan Holten
+
+This software is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0). See the LICENSE file for the full text.
+
+idlc-go is a clean-room reimplementation of `idlc.jar`, the IDL compiler
+distributed with SWGEmu's `engine3` framework
+(https://github.com/swgemu/MMOEngine). idlc-go was written from scratch by
+inspecting the JAR's textual output and the `.idl` corpus inside SWGEmu's
+Core3 server (https://github.com/swgemu/Core3); no decompiled or
+reverse-engineered source code from the JAR was incorporated.
+
+The reference `idlc.jar` is not redistributed with this project. It is
+referenced from a Core3 / engine3 checkout at runtime for oracle-based
+testing only.
+
+The C++ output produced by idlc-go is governed by the licenses of the
+`.idl` source files supplied as input. When idlc-go is used to compile
+SWGEmu Core3 / engine3 IDLs, that output inherits those projects'
+AGPL-3.0 license.
