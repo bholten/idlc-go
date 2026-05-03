@@ -1,8 +1,11 @@
 # idlc-go — friendly entry points for build, test, and corpus management.
 #
-# The Core3 corpus and idlc.jar are not redistributable, so they are
-# .gitignored and pulled locally via `make pull-core3` + `make fetch-corpus`.
-# Tests that need them auto-skip when missing (`internal/corpus` package).
+# The Core3 corpus and idlc.jar are not redistributable, so they live
+# outside the repo. Clone SWGEmu/Core3 (recursively, for the engine3
+# submodule) to ./submodules/Core3 to use the default path, or set
+# CORE3_PATH to point anywhere else. `make fetch-corpus` copies the
+# IDLs + JAR autogen into testdata/ for the corpus tests; tests that
+# need those auto-skip when missing (`internal/corpus` package).
 #
 # Override the Core3 location: `make CORE3_PATH=/abs/path test-corpus`.
 
@@ -11,7 +14,7 @@ JAR        := $(CORE3_PATH)/MMOCoreORB/utils/engine3/MMOEngine/lib/idlc.jar
 ENGINE3_SRC := $(CORE3_PATH)/MMOCoreORB/utils/engine3/MMOEngine/src
 
 .PHONY: help build test test-corpus test-probes test-all \
-        fmt vet pull-core3 fetch-corpus regen-probes regen-oracle \
+        fmt vet fetch-corpus regen-probes regen-oracle \
         ensure-core3 clean-got \
         baseline-jar baseline-idlc-go baseline-diff baseline \
         compile-engine3 compile-engine3-diff
@@ -27,8 +30,7 @@ help:
 	@echo "  make fmt             gofmt -w on the tree"
 	@echo "  make vet             go vet ./..."
 	@echo ""
-	@echo "Corpus management (requires Core3):"
-	@echo "  make pull-core3      git submodule update --init --recursive submodules/Core3"
+	@echo "Corpus management (requires Core3 at \$$CORE3_PATH or ./submodules/Core3):"
 	@echo "  make fetch-corpus    Copy IDLs + run JAR → testdata/idl/ + testdata/autogen/"
 	@echo "  make regen-probes    Re-run JAR over testdata/probe/src/ → expected/"
 	@echo "  make regen-oracle    Re-run JAR over scripts/oracle/src/ → hash test oracle"
@@ -72,17 +74,16 @@ test-all: ensure-core3 test
 ensure-core3:
 	@test -f "$(JAR)" || { \
 		echo "Core3 not present (looked for $(JAR))."; \
-		echo "Run \`make pull-core3\` or set CORE3_PATH=/abs/path."; \
+		echo "Clone SWGEmu/Core3 (with --recursive for engine3) to ./submodules/Core3,"; \
+		echo "or set CORE3_PATH=/abs/path/to/your/Core3 checkout."; \
 		exit 1; \
 	}
 	@test -d "$(ENGINE3_SRC)" || { \
 		echo "engine3 not present (looked for $(ENGINE3_SRC))."; \
-		echo "Run \`make pull-core3\` (recursive submodule pull)."; \
+		echo "Make sure your Core3 checkout was cloned recursively"; \
+		echo "(\`git clone --recursive\`), so the engine3 submodule is initialised."; \
 		exit 1; \
 	}
-
-pull-core3:
-	git submodule update --init --recursive submodules/Core3
 
 fetch-corpus: ensure-core3
 	CORE3_PATH=$(CORE3_PATH) bash scripts/fetch-corpus-from-core3.sh

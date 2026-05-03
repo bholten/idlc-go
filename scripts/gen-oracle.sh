@@ -6,7 +6,8 @@
 # is formatted to paste straight into internal/hash/crc_bzip2_test.go.
 #
 # Locates the JAR at ${CORE3_PATH}/MMOCoreORB/utils/engine3/MMOEngine/lib/
-# (set CORE3_PATH or run `make pull-core3` to populate it).
+# (defaults to ./submodules/Core3; clone SWGEmu/Core3 there or set
+# CORE3_PATH to point elsewhere).
 #
 # To extend the oracle, edit scripts/oracle/src/probe/Probe.idl, add the
 # fields you want hashed, then re-run this script.
@@ -21,7 +22,7 @@ trap 'rm -rf "${OUT}"' EXIT
 
 if [[ ! -f "${JAR}" ]]; then
 	echo "missing ${JAR}" >&2
-	echo "set CORE3_PATH or run \`make pull-core3\` to populate submodules/Core3" >&2
+	echo "Clone SWGEmu/Core3 to ./submodules/Core3 or set CORE3_PATH=/abs/path." >&2
 	exit 1
 fi
 

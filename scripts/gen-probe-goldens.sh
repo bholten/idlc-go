@@ -10,23 +10,23 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="${REPO_ROOT}/testdata/probe/src"
 EXPECTED="${REPO_ROOT}/testdata/probe/expected/probe"
 
-# Locate Core3 — defaults to the in-repo submodule path. Override with
-# `CORE3_PATH=/abs/path bash scripts/gen-probe-goldens.sh` if Core3 is
-# checked out elsewhere. The JAR ships in Core3's engine3 submodule and
-# is the same binary as the one we used to use at `ref/idlc.jar` (md5
-# match verified).
+# Locate Core3 — defaults to ./submodules/Core3. Clone SWGEmu/Core3
+# (recursively, for the engine3 submodule) there, or set CORE3_PATH to
+# point anywhere else. The JAR ships inside Core3's engine3 submodule
+# and is the same binary as the one we used to use at `ref/idlc.jar`
+# (md5 match verified).
 CORE3_PATH="${CORE3_PATH:-${REPO_ROOT}/submodules/Core3}"
 JAR="${CORE3_PATH}/MMOCoreORB/utils/engine3/MMOEngine/lib/idlc.jar"
 ENGINE3_SRC="${CORE3_PATH}/MMOCoreORB/utils/engine3/MMOEngine/src"
 
 if [[ ! -f "${JAR}" ]]; then
 	echo "missing ${JAR}" >&2
-	echo "set CORE3_PATH or run \`make pull-core3\` to populate submodules/Core3" >&2
+	echo "Clone SWGEmu/Core3 to ./submodules/Core3 or set CORE3_PATH=/abs/path." >&2
 	exit 1
 fi
 if [[ ! -d "${ENGINE3_SRC}" ]]; then
 	echo "missing engine3 source: ${ENGINE3_SRC}" >&2
-	echo "set CORE3_PATH or run \`make pull-core3\` to populate submodules/Core3" >&2
+	echo "(Re-clone Core3 with --recursive so engine3 is initialised.)" >&2
 	exit 1
 fi
 

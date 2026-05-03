@@ -42,13 +42,15 @@ Three layers, increasing in strictness:
 2. **Probe golden** (`internal/probe/`) - byte-diffs against synthetic probe IDLs. Runs without Core3.
 3. **Corpus golden** (`internal/golden/`) - byte-diffs against `testdata/autogen/` for 21 real Core3 IDLs.
 
-A fresh checkout passes the probe + unit + hash tests immediately. To run corpus tests:
+A fresh checkout passes the probe + unit + hash tests immediately. To run corpus tests, you need a local Core3 checkout:
 
 ```bash
-make pull-core3         # git submodule update --init --recursive
+git clone --recursive https://github.com/swgemu/Core3.git submodules/Core3
 make fetch-corpus       # populates testdata/{idl,autogen}/ from Core3
 make test-corpus
 ```
+
+Or set `CORE3_PATH=/abs/path/to/your/Core3` to point anywhere else.
 
 Convenience targets:
 
@@ -83,8 +85,9 @@ testdata/
 docs/
   idl-language-spec.md    # IDL reference and emit rules
   jar-quirks.md           # JAR behaviours we deliberately reproduce
-submodules/Core3/         # SWGEmu/Core3 + nested engine3 (.gitignored contents)
 ```
+
+For corpus tests and oracle regeneration, clone SWGEmu/Core3 to `submodules/Core3/` (the default `CORE3_PATH`) or anywhere else and override via `CORE3_PATH=/abs/path`. Core3 isn't required for the probe + hash + unit tests.
 
 ## Hash compatibility
 

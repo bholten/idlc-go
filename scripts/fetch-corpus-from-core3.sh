@@ -26,12 +26,12 @@ JAR="${CORE3_PATH}/MMOCoreORB/utils/engine3/MMOEngine/lib/idlc.jar"
 
 if [[ ! -d "${CORE3_SRC}" ]]; then
 	echo "missing Core3 source: ${CORE3_SRC}" >&2
-	echo "set CORE3_PATH or run \`make pull-core3\`" >&2
+	echo "Clone SWGEmu/Core3 to ./submodules/Core3 or set CORE3_PATH=/abs/path." >&2
 	exit 1
 fi
 if [[ ! -f "${JAR}" ]]; then
 	echo "missing JAR: ${JAR}" >&2
-	echo "(Core3's engine3 submodule may not be initialised — run \`make pull-core3\`)" >&2
+	echo "(Core3's engine3 submodule may not be initialised — re-clone with --recursive.)" >&2
 	exit 1
 fi
 

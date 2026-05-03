@@ -4,7 +4,7 @@
 
 Each entry below states the rule, where it was first verified (corpus IDL or probe), and flags items that look like JAR bugs we replicate intentionally.
 
-**Source-of-truth**: `ref/idlc.jar` (md5sum matches the JAR shipped in `submodules/Core3/MMOCoreORB/utils/engine3/MMOEngine/lib/idlc.jar`). Newer idlc forks in the wild emit `nullptr` instead of `NULL` and use a different file-header path prefix; if a "golden" comes from elsewhere, regenerate via `ref/idlc.jar` first.
+**Source-of-truth**: `ref/idlc.jar` (md5sum matches the JAR shipped inside Core3's engine3 submodule at `MMOCoreORB/utils/engine3/MMOEngine/lib/idlc.jar`). Newer idlc forks in the wild emit `nullptr` instead of `NULL` and use a different file-header path prefix; if a "golden" comes from elsewhere, regenerate via `ref/idlc.jar` first.
 
 ---
 
@@ -415,7 +415,7 @@ The `.cpp` re-includes any forward-declared imports so method bodies have access
 ## Build invocation
 
 ### Core3's invocation
-From `submodules/Core3/MMOCoreORB/cmake/Modules/FindEngine3.cmake`:
+From Core3's `MMOCoreORB/cmake/Modules/FindEngine3.cmake`:
 
 ```bash
 java -XX:TieredStopAtLevel=1 -client -Xmx128M \

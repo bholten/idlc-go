@@ -2,12 +2,12 @@
 
 A semi-formal description of the IDL language as accepted by `idlc.jar`, the engine3 IDL compiler, and as faithfully reimplemented by `idlc-go`. This document is descriptive, not prescriptive — it documents what the JAR does, not what one might wish it did.
 
-For motivation and project scope, see `idl-toolchain-feasibility.md`. For the catalog of specific bugs and surprising behaviours we reproduce, see `jar-quirks.md`. This document sits between them: a structured reference for the language and its semantics.
+For the catalog of specific bugs and surprising behaviours we reproduce, see `jar-quirks.md`. This document is the structured reference for the language and its semantics.
 
 ## Conventions
 
 - *Productions* in this document use a relaxed BNF: `|` for alternation, `?` for optional, `*` for zero-or-more, `+` for one-or-more, `[...]` for character classes. Where the grammar is ambiguous in practice, prose follows the production.
-- *"The JAR"* refers to `ref/idlc.jar` (md5-equivalent to the binary shipped in `submodules/Core3/MMOCoreORB/utils/engine3/MMOEngine/lib/idlc.jar`). Newer forks in the wild emit `nullptr` and different path prefixes; this spec describes the original JAR.
+- *"The JAR"* refers to `ref/idlc.jar` (md5-equivalent to the binary shipped inside Core3's engine3 submodule at `MMOCoreORB/utils/engine3/MMOEngine/lib/idlc.jar`). Newer forks in the wild emit `nullptr` and different path prefixes; this spec describes the original JAR.
 - *"Faithfully reproduces"* means idlc-go emits byte-identical output for the construct under discussion, including bugs.
 
 ---

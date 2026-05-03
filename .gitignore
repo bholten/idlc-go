@@ -22,6 +22,11 @@
 /testdata/mock/
 /testdata/ManagedObjectImplementation.cpp
 
+# Local Core3 checkout — set $CORE3_PATH to point anywhere, or clone
+# Core3 to ./submodules/Core3 to use the default path. Either way, the
+# checkout is not tracked here.
+/submodules/
+
 # Probe-gen scratch (the JAR writes its `-od autogen` output here)
 /testdata/probe/src/autogen/
 
