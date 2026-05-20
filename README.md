@@ -78,7 +78,6 @@ internal/
 testdata/
   idl/                    # corpus IDLs (Core3-derived, .gitignored)
   autogen/                # corpus JAR output (Core3-derived, .gitignored)
-  mock/                   # @mock-class fixtures (committed)
   probe/
     src/                  # synthetic probe IDLs (committed)
     expected/             # probe JAR output (committed)
@@ -107,7 +106,6 @@ None of these block the live Core3 build, but they may matter depending on your 
 
 - **`Observable` / `Observer` golden tests diverge.** The golden harness doesn't load engine3-side classes when running engine3-side IDLs, so the registry can't classify imports like `Logger` and falls back to `#include`. The live build does register them and is correct - this is a test-harness limitation only.
 - **`@async` annotation unimplemented.** Affects `TestIDLClass.cpp` and any other `@async` method: idlc-go omits the trailing `true` argument on `DistributedMethod(...)` and `executeWithVoidReturn(...)`. Not used in critical Core3 paths.
-- **`@mock` whole-corpus walk.** idlc-go relies on per-class `.mock` fixtures committed to `testdata/mock/`; the JAR walks the IDL inheritance chain to compute mock methods automatically. Net effect: `-DCOMPILE_TESTS=ON` is currently unsupported - build with `-DCOMPILE_TESTS=OFF` (which propagates `-nomocks` to the IDL compiler).
 - **`@lua` overloaded-method dispatch.** When a class has multiple methods with the same name (e.g. `getValueOf(int)` vs `getValueOf(string)`), idlc-go emits one body per name (first-occurrence wins) instead of the JAR's `lua_is<T>(L, -1)` dispatch ladder. Alternate overloads are unreachable from Lua scripts. Niche; only matters if Lua scripts call the alternate variants.
 
 ## Distribution
