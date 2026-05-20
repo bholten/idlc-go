@@ -44,6 +44,13 @@ type ClassMeta struct {
 	Parent           string // unqualified parent name; "" for root classes
 	DeclaresFinalize bool
 	Fields           []ClassMetaField
+
+	// MockMethods captures methods carrying a `@mock` annotation, in
+	// source order. The `@mock` emit walks the class chain and emits
+	// one `MOCK_METHODn(name, ret(args))` per entry — descendant first,
+	// then parent, then grandparent. Only @mock-annotated methods
+	// contribute; abstractness/visibility/native-ness are irrelevant.
+	MockMethods []Method
 }
 
 // ClassMetaField records the parts of a field declaration the body
@@ -319,6 +326,10 @@ func (r *Registry) LoadFromDir(dir string) error {
 				if v.Name == "finalize" {
 					meta.DeclaresFinalize = true
 				}
+
+				if hasAnnotation(v.Annotations, "mock") {
+					meta.MockMethods = append(meta.MockMethods, lowerMethod(v))
+				}
 			case *parser.Field:
 				meta.Fields = append(meta.Fields, ClassMetaField{
 					Name:         v.Name,
@@ -448,6 +459,43 @@ func (r *Registry) HasTransitiveFinalize(name string) bool {
 	}
 
 	return false
+}
+
+// MockMethodChain returns the ordered list of `@mock`-annotated methods
+// visible to `class Mock<className>`: the class's own @mock methods
+// first (source order), then its parent's, then grandparent's, etc.
+//
+// Walking stops at the first ancestor the registry doesn't know — e.g.
+// `ManagedObject` when only `-sd` was scanned. That's intentional: any
+// chain past the known set has no @mock methods to contribute anyway
+// (you'd have to have parsed those IDLs to know).
+//
+// Returns nil when the class isn't in the registry.
+func (r *Registry) MockMethodChain(className string) []Method {
+	if r == nil || className == "" {
+		return nil
+	}
+
+	var out []Method
+	visited := map[string]bool{}
+
+	for cur := className; cur != ""; {
+		if visited[cur] {
+			break
+		}
+
+		visited[cur] = true
+		meta, ok := r.classMeta[cur]
+
+		if !ok {
+			break
+		}
+
+		out = append(out, meta.MockMethods...)
+		cur = meta.Parent
+	}
+
+	return out
 }
 
 // LoadExternalHeadersFromDir scans dir recursively for plain `.h` files

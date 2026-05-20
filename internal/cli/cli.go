@@ -94,7 +94,7 @@ JAR-compat mode (when first arg starts with '-'):
   -rbcpp                         rebuild C++ mode (default; only mode)
   -rb                            rebuild marker (engine3 dir-walk variant); no-op
   -noprelocks                    disable @preLocked asserts (NOT YET HONORED)
-  -nomocks                       disable @mock class generation (NOT YET HONORED)
+  -nomocks                       disable @mock class generation
 
 Positional arg:
   <pkg/Class.idl>                per-file mode: compile one IDL
