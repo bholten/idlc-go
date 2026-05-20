@@ -116,12 +116,20 @@ func emitHeaderPrelude(w io.Writer, m *sema.Model, reg *sema.Registry) {
 }
 
 // emitMockHeader writes a `class Mock<Class> : public <Class>` shell
-// for `@mock` classes. The body — the MOCK_METHODn lines for each
-// inherited virtual method — is taken verbatim from m.MockBody. The
-// JAR derives this list by walking the entire IDL inheritance chain;
-// the Go reimplementation can't reproduce that without whole-corpus
-// access, so tests inject the expected body explicitly. No-op when
-// the class isn't `@mock`.
+// for `@mock` classes. The body is the list of `MOCK_METHODn(name,
+// ret(args))` lines — one per `@mock`-annotated method in the class
+// itself plus every `@mock` method up the parent chain (descendant
+// first, ancestor last; source order within each class).
+//
+// Body source preference:
+//  1. m.MockBody (test-injected verbatim string), if non-empty.
+//  2. Registry.MockMethodChain(class), rendered on the fly.
+//  3. Nothing — empty mock shell. Happens when the class is `@mock`
+//     but the registry doesn't know it (synthetic test models that
+//     bypass Resolve, mainly).
+//
+// Path (1) exists for legacy goldens that pre-date the chain walker
+// landing — once those are migrated, the override can go away.
 func emitMockHeader(w io.Writer, m *sema.Model) {
 	if !m.Class.IsMock {
 		return
@@ -131,11 +139,30 @@ func emitMockHeader(w io.Writer, m *sema.Model) {
 	fmt.Fprintf(w, "public:\n")
 	fmt.Fprintf(w, "\n")
 
-	if m.MockBody != "" {
+	switch {
+	case m.MockBody != "":
 		fmt.Fprint(w, m.MockBody)
+	case m.Registry != nil:
+		renderMockBody(w, m.Class.Name, m.Registry)
 	}
 
 	fmt.Fprintf(w, "};\n\n")
+}
+
+// renderMockBody emits one `MOCK_METHODn(name, ret(params));` line per
+// `@mock`-annotated method visible to Mock<className>, followed by a
+// trailing blank line (the JAR's format — present even when the body
+// is empty, surfaced by checking the baseline output).
+func renderMockBody(w io.Writer, className string, reg *sema.Registry) {
+	methods := reg.MockMethodChain(className)
+
+	for _, meth := range methods {
+		ret := returnDeclForMethod(meth, reg)
+		params := joinParamDecls(meth.Params, reg)
+		fmt.Fprintf(w, "\tMOCK_METHOD%d(%s,%s(%s));\n", len(meth.Params), meth.Name, ret, params)
+	}
+
+	fmt.Fprintln(w)
 }
 
 // importIsForwardDecl reports whether the given import qname should be

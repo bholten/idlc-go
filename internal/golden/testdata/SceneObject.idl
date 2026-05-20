@@ -1,0 +1,101 @@
+/*
+** Hand-authored test fixture (lives at `internal/golden/testdata/`, not
+** `testdata/idl/` — it ships in-repo and is not Core3-derived). The
+** golden harness loads it into the registry so the @mock chain walker
+** has SceneObject's @mock-annotated methods to inherit when emitting
+** Mock<Zone>/Mock<GroundZone>/Mock<SpaceZone>.
+**
+** Only the @mock-annotated methods from Core3's SceneObject.idl are
+** preserved, and only the annotations that affect MOCK_METHOD
+** rendering (@reference, @weakReference, @dereferenced, final). Non-
+** rendering annotations (@dirty/@local/@read/@nativeStub/@virtualStub)
+** are stripped — they don't affect the mock body and only add noise.
+**
+** Marked @mock at the class level for completeness, but no Mock<SceneObject>
+** golden is currently exercised — that would require resolving every
+** managed type referenced below.
+*/
+
+package server.zone.objects.scene;
+
+@mock
+class SceneObject {
+
+	@mock
+	public abstract native boolean isInRange(SceneObject obj, float range);
+
+	@mock
+	public abstract native void getSlottedObjects(@dereferenced VectorMap<string, SceneObject> objects);
+
+	@mock
+	public abstract native float getDistanceTo(SceneObject object);
+
+	@mock
+	public abstract native float getDistanceTo3d(SceneObject object);
+
+	@mock
+	public abstract native float getDistanceTo(Coordinate coordinate);
+
+	@mock
+	public abstract native float getDistanceTo3d(Coordinate coordinate);
+
+	@mock
+	public abstract native Zone getZone();
+
+	@mock
+	public abstract native Zone getZoneUnsafe();
+
+	@reference
+	@mock
+	public abstract native SceneObject getSlottedObject(final string slot);
+
+	@reference
+	@mock
+	public abstract native SceneObject getInventory();
+
+	@reference
+	@mock
+	public abstract native SceneObject getDatapad();
+
+	@mock
+	public abstract native boolean isFacingObject(SceneObject obj);
+
+	@weakReference
+	@mock
+	public native SceneObject getParent();
+
+	@mock
+	public native abstract CreatureObject asCreatureObject();
+
+	@mock
+	public native abstract AiAgent asAiAgent();
+
+	@mock
+	public native abstract ShipAiAgent asShipAiAgent();
+
+	@mock
+	public native abstract ShipObject asShipObject();
+
+	@mock
+	public native abstract SpaceStationObject asSpaceStationObject();
+
+	@mock
+	public native abstract CapitalShipObject asCapitalShipObject();
+
+	@mock
+	public native abstract PobShipObject asPobShip();
+
+	@mock
+	public native abstract MultiPassengerShipObject asMultiPassengerShip();
+
+	@mock
+	public native abstract FighterShipObject asFighterShip();
+
+	@mock
+	public abstract TangibleObject asTangibleObject() {
+		return null;
+	}
+
+	@mock
+	public native abstract float getTemplateRadius();
+}

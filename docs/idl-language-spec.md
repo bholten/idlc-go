@@ -346,8 +346,8 @@ There are roughly 20 functional annotations across the corpus. Frequency, semant
 
 | Annotation | On | Semantics |
 |---|---|---|
-| `@mock` | class | Emit a `Mock<Class>` subclass with gmock `MOCK_METHODn` declarations for each virtual method. The MOCK_METHOD body is read from a fixture file because the JAR walks the entire IDL inheritance chain to compute it; we can't reproduce that without whole-corpus access. |
-| `@mock` | method | Add `virtual ` to both the stub-class declaration AND the impl-class declaration so a gmock subclass can override. |
+| `@mock` | class | Emit a `Mock<Class>` subclass containing one `MOCK_METHODn(name, ret(args))` line per `@mock`-annotated method visible to the class — own methods first (source order), then walk the parent chain. The annotation is the entire eligibility filter; abstractness, native-ness, and visibility don't matter. |
+| `@mock` | method | Two effects: (1) the impl-class declaration gets a `virtual ` prefix so a gmock subclass can override; (2) the method is collected into the descendant `@mock` class's `MOCK_METHODn` body. |
 
 ### 6.4 Lua
 
@@ -595,7 +595,6 @@ A planned **semantic** validator would assert behavioural parity (hash equivalen
 Things we don't fully understand and have empirical-only answers for:
 
 - **The JAR's RPC seed formula.** Each IDL's first non-`@local` method gets a 32-bit seed. We extracted them by hand into a CSV (`legacyRPCSeeds` in `internal/sema/rpc.go`). The seeds aren't required at runtime, but byte-equality with the JAR's autogen requires reproducing them. No formula has been derived.
-- **How the JAR populates `@mock`'s `MOCK_METHODn` body.** It walks the entire IDL inheritance chain to compute the inherited-virtual list. We can't reproduce this without whole-corpus access; tests inject the expected body via fixture files.
 - **Whether the engine3-value-type set is complete.** §5.2's table is empirical — derived from the Core3 corpus. A custom fork using a different by-value engine3 type would need the set extended.
 - **Whether the JAR has any annotation-handling rules we haven't discovered.** Our 20-or-so annotation list (§6) covers the corpus, but the JAR may accept undocumented annotations. Seems unlikely but unverified.
 - **The relationship between `@dirty` class-level and method-level.** The class-level `@dirty` propagates to every method, but interactions with explicit method-level `@read` / `@dirty` aren't fully characterized.

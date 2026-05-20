@@ -19,7 +19,6 @@
 /ref/idlc.jar
 /testdata/idl/
 /testdata/autogen/
-/testdata/mock/
 /testdata/ManagedObjectImplementation.cpp
 
 # Local Core3 checkout — set $CORE3_PATH to point anywhere, or clone

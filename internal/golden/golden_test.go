@@ -136,6 +136,15 @@ func runGolden(t *testing.T, className, pkgDir string) {
 
 	reg := sema.NewRegistry()
 
+	// Load the hand-authored @mock-chain fixture (SceneObject.idl) from
+	// `internal/golden/testdata/` first. It's tracked in-repo so it's
+	// always available, even without a corpus fetch. The corpus dir
+	// (`testdata/idl/`) is loaded next; it never contains SceneObject.idl,
+	// so the two scans don't conflict.
+	if err := reg.LoadFromDir(filepath.Join(root, "internal", "golden", "testdata")); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := reg.LoadFromDir(filepath.Join(root, "testdata", "idl")); err != nil {
 		t.Fatal(err)
 	}
@@ -209,18 +218,6 @@ func runGolden(t *testing.T, className, pkgDir string) {
 		"engine.util.Observer",
 	} {
 		reg.AddNonManagedParent(name)
-	}
-
-	if m.Class.IsMock {
-		// `@mock` mock-method bodies require whole-corpus knowledge to
-		// derive (the JAR walks every parent IDL); inject the expected
-		// body verbatim from a fixture instead.
-		mockPath := filepath.Join(root, "testdata", "mock", className+".mock")
-		body, err := os.ReadFile(mockPath)
-		if err != nil {
-			t.Fatalf("missing mock fixture %s: %v", mockPath, err)
-		}
-		m.MockBody = string(body)
 	}
 
 	gotH, gotC, err := cpp.Generate(m, reg)

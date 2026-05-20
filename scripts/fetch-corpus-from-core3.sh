@@ -71,7 +71,6 @@ trap 'rm -rf "${CORE3_SRC}/${OD_REL}" "${ENGINE3_SRC}/${OD_REL}" 2>/dev/null || 
 
 mkdir -p "${REPO_ROOT}/testdata/idl"
 mkdir -p "${REPO_ROOT}/testdata/autogen"
-mkdir -p "${REPO_ROOT}/testdata/mock"
 
 count=0
 for entry in "${CORPUS[@]}"; do
@@ -112,23 +111,7 @@ for entry in "${CORPUS[@]}"; do
 	cp "${gen_h}" "${REPO_ROOT}/testdata/autogen/${pkg}/${class}.h"
 	cp "${gen_cpp}" "${REPO_ROOT}/testdata/autogen/${pkg}/${class}.cpp"
 
-	# If the JAR emitted a `MockX` class block (because the IDL has
-	# `@mock`), extract the MOCK_METHOD lines into testdata/mock/X.mock.
-	# The .mock fixture format is: every `\tMOCK_METHOD…(…);` line from
-	# the MockX block, terminated by a trailing blank line (the JAR's
-	# `};` close needs a separator before it — see the GroundZone-mock
-	# trailing-blank-line quirk).
-	if grep -q "^class Mock${class} :" "${gen_h}"; then
-		awk -v cls="Mock${class}" '
-			$0 ~ "^class " cls " :" { in_mock = 1; next }
-			in_mock && /^\};/ { in_mock = 0; exit }
-			in_mock && /MOCK_METHOD/ { print }
-		' "${gen_h}" > "${REPO_ROOT}/testdata/mock/${class}.mock"
-		printf "\n" >> "${REPO_ROOT}/testdata/mock/${class}.mock"
-	fi
-
 	count=$((count + 1))
 done
 
 echo "[corpus] populated ${count} IDLs + autogen from Core3 into testdata/"
-echo "[corpus] mock fixtures extracted from JAR autogen for any @mock classes"

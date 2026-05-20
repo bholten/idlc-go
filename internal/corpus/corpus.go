@@ -1,10 +1,10 @@
 // Package corpus locates the Core3-derived test corpus on disk and
 // helps tests skip cleanly when it isn't present.
 //
-// The corpus (`testdata/idl/`, `testdata/autogen/`, `testdata/mock/`)
-// is copied from Core3 by `scripts/fetch-corpus-from-core3.sh` and is
-// .gitignored — Core3 sources are licensed and can't be redistributed
-// as part of idlc-go. Tests that depend on the corpus call
+// The corpus (`testdata/idl/`, `testdata/autogen/`) is copied from
+// Core3 by `scripts/fetch-corpus-from-core3.sh` and is .gitignored —
+// Core3 sources are licensed and can't be redistributed as part of
+// idlc-go. Tests that depend on the corpus call
 // `corpus.RequireOrSkip(t)` at the top so they no-op gracefully when
 // a contributor hasn't run the fetch step.
 package corpus
@@ -30,9 +30,6 @@ func IDLDir() string { return filepath.Join(RepoRoot(), "testdata", "idl") }
 
 // AutogenDir returns the corpus autogen root: `<repo>/testdata/autogen`.
 func AutogenDir() string { return filepath.Join(RepoRoot(), "testdata", "autogen") }
-
-// MockDir returns the corpus mock fixtures dir: `<repo>/testdata/mock`.
-func MockDir() string { return filepath.Join(RepoRoot(), "testdata", "mock") }
 
 // Available reports whether the corpus is present (any .idl in IDLDir).
 func Available() bool {
