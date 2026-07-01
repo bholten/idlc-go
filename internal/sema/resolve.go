@@ -133,6 +133,7 @@ func lowerMethod(m *parser.Method) Method {
 		IsRead:                        hasAnnotation(m.Annotations, "read"),
 		IsLocal:                       hasAnnotation(m.Annotations, "local"),
 		IsDirty:                       hasAnnotation(m.Annotations, "dirty"),
+		IsDirtyOwn:                    hasAnnotation(m.Annotations, "dirty"),
 		IsPreLocked:                   hasAnnotation(m.Annotations, "preLocked"),
 		IsArg1PreLocked:               hasAnnotation(m.Annotations, "arg1preLocked"),
 		IsArg2PreLocked:               hasAnnotation(m.Annotations, "arg2preLocked"),

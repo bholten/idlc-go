@@ -354,7 +354,19 @@ func emitStubMethod(w io.Writer, model *sema.Model, m sema.Method) {
 
 	fmt.Fprintf(w, "\t} else {\n")
 
-	if m.IsPreLocked {
+	// JAR rule: the @preLocked `this`-lock assert is suppressed ONLY when the
+	// method carries its OWN @dirty annotation. @dirty means "I don't hold a
+	// lock, dirty read", so asserting this is locked would be self-contradictory.
+	// Crucially this is the method-level @dirty (IsDirtyOwn), NOT the effective
+	// IsDirty that also picks up a class-level `@dirty class` — in a @dirty
+	// class the JAR still emits the assert for @preLocked-only methods (e.g.
+	// ChatManager::createPersistentRoomByFullPath). @read/@reference/plain
+	// @preLocked all KEEP the assert. (Verified against the JAR: getWeapon
+	// @dirty→no assert; FrsRank::getRank @read→assert; createPersistentRoomByFullPath
+	// @preLocked in a @dirty class→assert.) Arg-preLocked asserts concern a
+	// *different* object (a parameter), independent of this's lock, so they
+	// are always emitted.
+	if m.IsPreLocked && !m.IsDirtyOwn {
 		fmt.Fprintf(w, "\t\tassert(this->isLockedByCurrentThread());\n")
 	}
 
@@ -397,7 +409,19 @@ func emitStubMethodLocal(w io.Writer, model *sema.Model, m sema.Method) {
 	fmt.Fprintf(w, "\t\tthrow ObjectNotLocalException(this);\n\n")
 	fmt.Fprintf(w, "\t} else {\n")
 
-	if m.IsPreLocked {
+	// JAR rule: the @preLocked `this`-lock assert is suppressed ONLY when the
+	// method carries its OWN @dirty annotation. @dirty means "I don't hold a
+	// lock, dirty read", so asserting this is locked would be self-contradictory.
+	// Crucially this is the method-level @dirty (IsDirtyOwn), NOT the effective
+	// IsDirty that also picks up a class-level `@dirty class` — in a @dirty
+	// class the JAR still emits the assert for @preLocked-only methods (e.g.
+	// ChatManager::createPersistentRoomByFullPath). @read/@reference/plain
+	// @preLocked all KEEP the assert. (Verified against the JAR: getWeapon
+	// @dirty→no assert; FrsRank::getRank @read→assert; createPersistentRoomByFullPath
+	// @preLocked in a @dirty class→assert.) Arg-preLocked asserts concern a
+	// *different* object (a parameter), independent of this's lock, so they
+	// are always emitted.
+	if m.IsPreLocked && !m.IsDirtyOwn {
 		fmt.Fprintf(w, "\t\tassert(this->isLockedByCurrentThread());\n")
 	}
 

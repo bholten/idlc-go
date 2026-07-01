@@ -170,7 +170,8 @@ type Method struct {
 	// are listed individually; others are added as we extend the corpus.
 	IsRead                        bool
 	IsLocal                       bool
-	IsDirty                       bool
+	IsDirty                       bool // effective @dirty (includes class-level @dirty propagation)
+	IsDirtyOwn                    bool // method's OWN @dirty annotation, ignoring class-level propagation
 	IsPreLocked                   bool
 	IsArg1PreLocked               bool
 	IsArg2PreLocked               bool
