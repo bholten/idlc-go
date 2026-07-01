@@ -1,0 +1,30 @@
+package probe;
+
+import engine.core.ManagedObject;
+
+// A class-level `@dirty` annotation propagates dirty-read semantics (the
+// `_getImplementationForRead()` fetch) to EVERY method. It must NOT, however,
+// suppress the @preLocked `this`-lock assert: only a method's OWN @dirty
+// annotation does that. This probe pins that distinction (regressed once when
+// suppression keyed off the effective/propagated dirty flag instead of the
+// method-level one).
+@dirty
+class DirtyClass extends ManagedObject {
+	// @preLocked only: inherits class-level dirty for the read fetch, but the
+	// this-lock assert MUST still be emitted.
+	@preLocked
+	public native int preLockedInDirtyClass(int x);
+
+	// Method-level @dirty + @preLocked: this-lock assert MUST be suppressed.
+	@dirty
+	@preLocked
+	public native int ownDirtyPreLocked(int x);
+
+	// @read + @preLocked: assert MUST be emitted (read still holds a lock).
+	@read
+	@preLocked
+	public native int readPreLockedInDirtyClass(int x);
+
+	// No @preLocked: no this-lock assert regardless.
+	public native int plainInDirtyClass(int x);
+}

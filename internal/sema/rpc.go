@@ -287,15 +287,16 @@ var legacyRPCSeeds = map[string]uint32{
 	// Probe seeds — used by synthetic IDLs in testdata/probe/, not in
 	// the Core3 corpus. Keep these alongside the extracted set so the
 	// probe tests stay byte-identical when the file is regenerated.
-	"probe.Locking.plain(int)":                   49071539,
-	"probe.Returns.retInt()":                     664163704,
-	"probe.Params.plainInt(int)":                 1117188990,
-	"probe.Dispatch.plainNative()":               2935911594,
-	"probe.Generics.retVecInt()":                 534223235,
-	"probe.Inheritance.finalize()":               2585546652,
-	"probe.NativeCtor.getValue()":                3307767849,
-	"probe.RawDereferenced.getDereferencedRef()": 1517703269,
-	"probe.Scriptable.isReady()":                 3020311965,
+	"probe.Locking.plain(int)":                    49071539,
+	"probe.DirtyClass.preLockedInDirtyClass(int)": 2177907704,
+	"probe.Returns.retInt()":                      664163704,
+	"probe.Params.plainInt(int)":                  1117188990,
+	"probe.Dispatch.plainNative()":                2935911594,
+	"probe.Generics.retVecInt()":                  534223235,
+	"probe.Inheritance.finalize()":                2585546652,
+	"probe.NativeCtor.getValue()":                 3307767849,
+	"probe.RawDereferenced.getDereferencedRef()":  1517703269,
+	"probe.Scriptable.isReady()":                  3020311965,
 }
 
 // RPCEnumMangle returns the type suffix used in the RPC enum constant
