@@ -40,6 +40,8 @@ help:
 	@echo "  make baseline-idlc-go  Run idlc-go over every Core3 IDL → _baseline/idlc-go/"
 	@echo "  make baseline          Both of the above"
 	@echo "  make baseline-diff     Diff _baseline/jar vs _baseline/idlc-go, report"
+	@echo "  make test-parity       Regenerate both baselines, then assert per-method"
+	@echo "                         lock/dispatch parity with the JAR over the full corpus"
 	@echo ""
 	@echo "engine3 directory-walk (requires Core3):"
 	@echo "  make compile-engine3      Run idlc-go in dir-walk mode against engine3"
@@ -68,6 +70,9 @@ test-probes:
 
 test-corpus: ensure-core3
 	go test ./internal/golden/... ./internal/parser/... ./internal/sema/...
+
+test-parity: baseline
+	go test ./internal/golden/ -run TestCorpusLockDispatchParity -v
 
 test-all: ensure-core3 test
 

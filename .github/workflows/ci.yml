@@ -38,3 +38,27 @@ jobs:
 
       - name: go test
         run: go test ./...
+
+  corpus-parity:
+    name: corpus lock/dispatch parity (vs JAR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      # The JAR is an unlicensed proprietary blob we keep OUT of this tree
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Fetch Core3 corpus + JAR (transient, gitignored)
+        run: git clone --depth 1 --recurse-submodules --shallow-submodules
+          https://github.com/SWGEmu/Core3.git submodules/Core3
+
+      - name: Full-corpus lock/dispatch parity
+        run: make test-parity
